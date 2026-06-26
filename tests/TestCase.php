@@ -22,5 +22,6 @@ abstract class TestCase extends Orchestra
     protected function defineEnvironment($app): void
     {
         $app['config']->set('google-places.key', 'GoogleApiKey');
+        $app['config']->set('google-places.http.retry_delay', 0);
     }
 }
