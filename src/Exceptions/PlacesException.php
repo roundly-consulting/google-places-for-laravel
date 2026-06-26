@@ -59,6 +59,11 @@ final class PlacesException extends Exception
         return new self("The search radius must be between {$min} and {$max} meters.");
     }
 
+    public static function sessionFinished(): self
+    {
+        return new self('This autocomplete session has already been closed by a details() call. Start a new session with GooglePlaces::session().');
+    }
+
     public static function routeNotFound(int $origin, int $destination, ?string $condition): self
     {
         return new self(
