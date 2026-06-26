@@ -9,9 +9,10 @@ return [
     | Google API Key
     |--------------------------------------------------------------------------
     |
-    | The API key used to authenticate every request to the Google Maps /
-    | Places web services. Create one in the Google Cloud console and enable
-    | the Places, Geocoding, and Distance Matrix APIs for it.
+    | The API key used to authenticate every request. Places API (New) and the
+    | Routes API authenticate with the `X-Goog-Api-Key` header; the Geocoding
+    | API keeps the `key` query parameter. Create the key in the Google Cloud
+    | console and enable the Places API (New), Routes API, and Geocoding API.
     |
     */
 
@@ -19,15 +20,71 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Base URL
+    | Service Hosts
     |--------------------------------------------------------------------------
     |
-    | The base URL every request is sent to. Override it only if you proxy the
-    | Google Maps API through your own gateway; the default targets Google
-    | directly.
+    | Each Google product lives on its own host. Override these only when you
+    | proxy Google through your own gateway.
     |
     */
 
-    'base_url' => env('GOOGLE_PLACES_API_URL', 'https://maps.googleapis.com/maps/api'),
+    'hosts' => [
+        'places' => env('GOOGLE_PLACES_HOST', 'https://places.googleapis.com/v1'),
+        'routes' => env('GOOGLE_ROUTES_HOST', 'https://routes.googleapis.com'),
+        'geocoding' => env('GOOGLE_GEOCODING_HOST', 'https://maps.googleapis.com/maps/api'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Field Masks
+    |--------------------------------------------------------------------------
+    |
+    | Places API (New) and the Routes API require an `X-Goog-FieldMask` header
+    | naming the fields to return — a request without one errors. Trim these to
+    | only the fields you use so you are billed for nothing more.
+    |
+    */
+
+    'field_masks' => [
+        'details' => 'id,displayName,formattedAddress,location,viewport,types,regularOpeningHours,photos',
+        'autocomplete' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.types',
+        'search' => 'places.id,places.displayName,places.formattedAddress,places.location,places.viewport,places.types,places.regularOpeningHours,places.photos',
+        'routes' => 'originIndex,destinationIndex,distanceMeters,duration,condition,status',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | HTTP Resilience
+    |--------------------------------------------------------------------------
+    |
+    | Bound every outbound call so a slow or flaky Google response can never
+    | hang the host request. Connection failures (timeouts, DNS) are retried;
+    | Google business errors are surfaced as a PlacesException.
+    |
+    */
+
+    'http' => [
+        'timeout' => (int) env('GOOGLE_PLACES_TIMEOUT', 10),
+        'connect_timeout' => (int) env('GOOGLE_PLACES_CONNECT_TIMEOUT', 5),
+        'retries' => (int) env('GOOGLE_PLACES_RETRIES', 2),
+        'retry_delay' => (int) env('GOOGLE_PLACES_RETRY_DELAY', 200),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response Caching
+    |--------------------------------------------------------------------------
+    |
+    | Opt-in caching for the idempotent lookups (details, geocode, distance,
+    | text/nearby search). Autocomplete is never cached. The API key never
+    | appears in a cache key.
+    |
+    */
+
+    'cache' => [
+        'enabled' => (bool) env('GOOGLE_PLACES_CACHE', false),
+        'store' => env('GOOGLE_PLACES_CACHE_STORE'),
+        'ttl' => (int) env('GOOGLE_PLACES_CACHE_TTL', 86400),
+    ],
 
 ];
