@@ -17,18 +17,23 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompleteQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DetailsQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Distance;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceMatrix;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\LocationDefinition;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\SearchPage;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
 
 final class Places implements PlacesClient
 {
@@ -117,6 +122,25 @@ final class Places implements PlacesClient
         });
     }
 
+    public function geocodeAddress(GeocodingQuery|string $query): Collection
+    {
+        $query = is_string($query) ? new GeocodingQuery($query) : $query;
+
+        return $this->cached('geocodeAddress', $query->toRequest(), function () use ($query): Collection {
+            $response = $this->send('geocodeAddress', fn (): Response => $this->geocodingClient()
+                ->get('/geocode/json', $query->toRequest()));
+
+            if (in_array($response->json('status'), ['OK', 'ZERO_RESULTS'], true)) {
+                $this->received('geocodeAddress', $response);
+
+                return $response->collect('results')
+                    ->map(static fn (array $item): ReverseGeocodingResult => ReverseGeocodingResult::fromResponse($item));
+            }
+
+            throw $this->failed('geocodeAddress', $response);
+        });
+    }
+
     public function textSearch(TextSearchQuery|string $query): Collection
     {
         $query = is_string($query) ? new TextSearchQuery($query) : $query;
@@ -127,6 +151,57 @@ final class Places implements PlacesClient
     public function nearbySearch(NearbySearchQuery $query): Collection
     {
         return $this->cached('nearbySearch', $query->toBody(), fn (): Collection => $this->search('nearbySearch', '/places:searchNearby', $query->toBody()));
+    }
+
+    public function textSearchPaginated(TextSearchQuery|string $query): SearchPaginator
+    {
+        $query = is_string($query) ? new TextSearchQuery($query) : $query;
+
+        return new SearchPaginator(
+            fn (?string $pageToken): SearchPage => $this->searchPage(
+                'textSearch',
+                '/places:searchText',
+                ($pageToken === null ? $query : $query->withPageToken($pageToken))->toBody(),
+            ),
+            $this->maxPages(),
+            'textSearch',
+        );
+    }
+
+    public function nearbySearchPaginated(NearbySearchQuery $query): SearchPaginator
+    {
+        return new SearchPaginator(
+            fn (?string $pageToken): SearchPage => $this->searchPage('nearbySearch', '/places:searchNearby', $query->toBody()),
+            $this->maxPages(),
+            'nearbySearch',
+        );
+    }
+
+    public function computeMatrix(MatrixQuery $query): DistanceMatrix
+    {
+        return $this->cached('computeMatrix', $query->toRoutesBody(), function () use ($query): DistanceMatrix {
+            $response = $this->send('computeMatrix', fn (): Response => $this->routesClient($this->mask('routes'))
+                ->post('/distanceMatrix/v2:computeRouteMatrix', $query->toRoutesBody()));
+
+            if (! $response->successful()) {
+                throw $this->failed('computeMatrix', $response);
+            }
+
+            $this->received('computeMatrix', $response);
+
+            $elements = $response->json();
+
+            if (! is_array($elements)) {
+                throw $this->failed('computeMatrix', $response);
+            }
+
+            return DistanceMatrix::fromRoutesElements(
+                $elements,
+                count($query->origins),
+                count($query->destinations),
+                $query->type,
+            );
+        });
     }
 
     public function findPlace(string $text, ?Location $bias = null): ?Place
@@ -194,6 +269,36 @@ final class Places implements PlacesClient
         return $response->collect('places')
             ->map(static fn (array $place): Place => Place::fromResponse($place))
             ->values();
+    }
+
+    /**
+     * Fetch one page of a search and surface its `nextPageToken`.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    private function searchPage(string $endpoint, string $uri, array $body): SearchPage
+    {
+        $response = $this->send($endpoint, fn (): Response => $this->placesClient($this->mask('search').',nextPageToken')
+            ->post($uri, $body));
+
+        if (! $response->successful()) {
+            throw $this->failed($endpoint, $response);
+        }
+
+        $this->received($endpoint, $response);
+
+        $places = array_values($response->collect('places')
+            ->map(static fn (array $place): Place => Place::fromResponse($place))
+            ->all());
+
+        $token = $response->json('nextPageToken');
+
+        return new SearchPage($places, is_string($token) ? $token : null);
+    }
+
+    private function maxPages(): int
+    {
+        return max(1, (int) config('google-places.pagination.max_pages', 5));
     }
 
     /**

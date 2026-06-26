@@ -9,8 +9,11 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompleteQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DetailsQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Distance;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceMatrix;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
@@ -18,6 +21,7 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
 
 interface PlacesClient
 {
@@ -43,6 +47,15 @@ interface PlacesClient
     public function geocode(ReverseGeocodingQuery|Location|float $location, ?float $longitude = null): Collection;
 
     /**
+     * Forward geocode an address into a collection of geocoding results.
+     *
+     * @return Collection<int, ReverseGeocodingResult>
+     *
+     * @throws PlacesException
+     */
+    public function geocodeAddress(GeocodingQuery|string $query): Collection;
+
+    /**
      * @return Collection<int, Place>
      *
      * @throws PlacesException
@@ -57,6 +70,16 @@ interface PlacesClient
     public function nearbySearch(NearbySearchQuery $query): Collection;
 
     /**
+     * A paginator that transparently follows the text-search `nextPageToken`.
+     */
+    public function textSearchPaginated(TextSearchQuery|string $query): SearchPaginator;
+
+    /**
+     * A paginator over a nearby search (the New API returns a single page).
+     */
+    public function nearbySearchPaginated(NearbySearchQuery $query): SearchPaginator;
+
+    /**
      * @throws PlacesException
      */
     public function findPlace(string $text, ?Location $bias = null): ?Place;
@@ -65,4 +88,11 @@ interface PlacesClient
      * @throws PlacesException
      */
     public function distance(DistanceQuery $query): Distance|Roundtrip;
+
+    /**
+     * Compute a full origins × destinations distance matrix.
+     *
+     * @throws PlacesException
+     */
+    public function computeMatrix(MatrixQuery $query): DistanceMatrix;
 }
