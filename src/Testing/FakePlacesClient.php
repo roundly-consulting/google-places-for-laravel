@@ -12,14 +12,20 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompleteQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DetailsQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Distance;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceMatrix;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\SearchPage;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
+use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
+use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
 
 final class FakePlacesClient implements PlacesClient
 {
@@ -30,6 +36,11 @@ final class FakePlacesClient implements PlacesClient
 
     /** @var list<ReverseGeocodingResult> */
     private array $geocodeReturn = [];
+
+    /** @var list<ReverseGeocodingResult> */
+    private array $geocodeAddressReturn = [];
+
+    private ?DistanceMatrix $matrixReturn = null;
 
     /** @var list<Place> */
     private array $textSearchReturn = [];
@@ -51,6 +62,12 @@ final class FakePlacesClient implements PlacesClient
 
     /** @var list<ReverseGeocodingQuery> */
     private array $geocodeCalls = [];
+
+    /** @var list<GeocodingQuery> */
+    private array $geocodeAddressCalls = [];
+
+    /** @var list<MatrixQuery> */
+    private array $matrixCalls = [];
 
     /** @var list<TextSearchQuery> */
     private array $textSearchCalls = [];
@@ -87,6 +104,23 @@ final class FakePlacesClient implements PlacesClient
     public function withGeocode(array $results): self
     {
         $this->geocodeReturn = $results;
+
+        return $this;
+    }
+
+    /**
+     * @param  list<ReverseGeocodingResult>  $results
+     */
+    public function withGeocodeAddress(array $results): self
+    {
+        $this->geocodeAddressReturn = $results;
+
+        return $this;
+    }
+
+    public function withMatrix(DistanceMatrix $matrix): self
+    {
+        $this->matrixReturn = $matrix;
 
         return $this;
     }
@@ -162,6 +196,13 @@ final class FakePlacesClient implements PlacesClient
         return collect($this->geocodeReturn);
     }
 
+    public function geocodeAddress(GeocodingQuery|string $query): Collection
+    {
+        $this->geocodeAddressCalls[] = is_string($query) ? new GeocodingQuery($query) : $query;
+
+        return collect($this->geocodeAddressReturn);
+    }
+
     public function textSearch(TextSearchQuery|string $query): Collection
     {
         $this->textSearchCalls[] = is_string($query) ? new TextSearchQuery($query) : $query;
@@ -174,6 +215,27 @@ final class FakePlacesClient implements PlacesClient
         $this->nearbySearchCalls[] = $query;
 
         return collect($this->nearbySearchReturn);
+    }
+
+    public function textSearchPaginated(TextSearchQuery|string $query): SearchPaginator
+    {
+        $this->textSearchCalls[] = is_string($query) ? new TextSearchQuery($query) : $query;
+
+        return $this->paginatorFor($this->textSearchReturn);
+    }
+
+    public function nearbySearchPaginated(NearbySearchQuery $query): SearchPaginator
+    {
+        $this->nearbySearchCalls[] = $query;
+
+        return $this->paginatorFor($this->nearbySearchReturn);
+    }
+
+    public function computeMatrix(MatrixQuery $query): DistanceMatrix
+    {
+        $this->matrixCalls[] = $query;
+
+        return $this->matrixReturn ?? new DistanceMatrix([], count($query->origins), count($query->destinations), TravelMode::Driving);
     }
 
     public function findPlace(string $text, ?Location $bias = null): ?Place
@@ -217,6 +279,27 @@ final class FakePlacesClient implements PlacesClient
     public function assertGeocoded(?Closure $callback = null): void
     {
         $this->assertCalled('geocode', $this->geocodeCalls, $callback);
+    }
+
+    /**
+     * @param  (Closure(GeocodingQuery): bool)|string|null  $callback
+     */
+    public function assertAddressGeocoded(Closure|string|null $callback = null): void
+    {
+        if (is_string($callback)) {
+            $address = $callback;
+            $callback = static fn (GeocodingQuery $query): bool => $query->address === $address;
+        }
+
+        $this->assertCalled('geocodeAddress', $this->geocodeAddressCalls, $callback);
+    }
+
+    /**
+     * @param  (Closure(MatrixQuery): bool)|null  $callback
+     */
+    public function assertMatrixComputed(?Closure $callback = null): void
+    {
+        $this->assertCalled('computeMatrix', $this->matrixCalls, $callback);
     }
 
     /**
@@ -268,11 +351,24 @@ final class FakePlacesClient implements PlacesClient
             count($this->autocompleteCalls)
                 + count($this->detailsCalls)
                 + count($this->geocodeCalls)
+                + count($this->geocodeAddressCalls)
+                + count($this->matrixCalls)
                 + count($this->textSearchCalls)
                 + count($this->nearbySearchCalls)
                 + count($this->findPlaceCalls)
                 + count($this->distanceCalls),
             'Expected no Google Places calls.',
+        );
+    }
+
+    /**
+     * @param  list<Place>  $places
+     */
+    private function paginatorFor(array $places): SearchPaginator
+    {
+        return new SearchPaginator(
+            static fn (?string $pageToken): SearchPage => new SearchPage($places),
+            1,
         );
     }
 
