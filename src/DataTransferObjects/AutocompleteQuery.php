@@ -74,6 +74,22 @@ final readonly class AutocompleteQuery
     }
 
     /**
+     * Bias results toward a circle around the given point.
+     */
+    public function nearby(float $latitude, float $longitude, int $radius = 5000): self
+    {
+        return $this->preferInArea((new LocationDefinition)->circle(new Location($latitude, $longitude), $radius));
+    }
+
+    /**
+     * Restrict results to a rectangle between two corners.
+     */
+    public function withinBounds(Location $low, Location $high): self
+    {
+        return $this->restrictTo((new LocationDefinition)->rectangle($low, $high));
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toBody(): array

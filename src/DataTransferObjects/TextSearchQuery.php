@@ -79,6 +79,22 @@ final readonly class TextSearchQuery
         return $this->copy(rankPreference: $rankPreference);
     }
 
+    /**
+     * Bias results toward a circle around the given point.
+     */
+    public function nearby(float $latitude, float $longitude, int $radius = 5000): self
+    {
+        return $this->preferInArea((new LocationDefinition)->circle(new Location($latitude, $longitude), $radius));
+    }
+
+    /**
+     * Restrict results to a rectangle between two corners.
+     */
+    public function withinBounds(Location $low, Location $high): self
+    {
+        return $this->restrictTo((new LocationDefinition)->rectangle($low, $high));
+    }
+
     public function withPageToken(string $pageToken): self
     {
         return $this->copy(pageToken: $pageToken);

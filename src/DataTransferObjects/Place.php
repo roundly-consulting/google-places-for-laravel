@@ -10,6 +10,7 @@ final readonly class Place
      * @param  list<string>  $types
      * @param  list<string>  $photos  Photo resource names (pass to GooglePlaces::photoUrl()).
      * @param  array<string, mixed>  $raw
+     * @param  list<AddressComponent>  $addressComponents
      */
     public function __construct(
         public string $name,
@@ -20,6 +21,7 @@ final readonly class Place
         public ?OpeningHours $openingHours = null,
         public array $photos = [],
         public array $raw = [],
+        public array $addressComponents = [],
     ) {}
 
     /**
@@ -47,6 +49,60 @@ final readonly class Place
                 array_values((array) ($item['photos'] ?? [])),
             ),
             raw: $item,
+            addressComponents: array_map(
+                static fn (mixed $component): AddressComponent => AddressComponent::fromPlace((array) $component),
+                array_values((array) ($item['addressComponents'] ?? [])),
+            ),
         );
+    }
+
+    public function isOpenNow(): bool
+    {
+        return $this->openingHours instanceof OpeningHours && $this->openingHours->isOpen;
+    }
+
+    public function coordinates(): ?Location
+    {
+        return $this->geometry?->location;
+    }
+
+    /**
+     * The place's primary type, falling back to the first of its types.
+     */
+    public function primaryType(): ?string
+    {
+        $primary = $this->raw['primaryType'] ?? null;
+
+        if (is_string($primary) && $primary !== '') {
+            return $primary;
+        }
+
+        return $this->types[0] ?? null;
+    }
+
+    /**
+     * Typed accessors (street, city, country, …) over the address components.
+     * Populated only when `addressComponents` is included in the field mask.
+     */
+    public function components(): AddressComponents
+    {
+        return new AddressComponents($this->addressComponents);
+    }
+
+    /**
+     * Opening-hour periods that start on the given weekday (0 = Sunday).
+     *
+     * @return list<OpeningHourPeriod>
+     */
+    public function openingHoursFor(int $day): array
+    {
+        if (! $this->openingHours instanceof OpeningHours) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->openingHours->periods,
+            static fn (OpeningHourPeriod $period): bool => $period->day === $day,
+        ));
     }
 }
