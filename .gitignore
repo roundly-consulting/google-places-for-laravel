@@ -8,3 +8,6 @@ phpstan.neon
 testbench.yaml
 vendor
 node_modules
+
+# Local live smoke test (not shipped)
+/test.php
