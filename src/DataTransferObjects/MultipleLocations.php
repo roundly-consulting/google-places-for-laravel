@@ -14,12 +14,6 @@ final readonly class MultipleLocations
      */
     public function __construct(public array $locations = []) {}
 
-    public function toRequest(): string
-    {
-        return $this->map(static fn (Location $location): string => $location->toRequest())
-            ->implode('|');
-    }
-
     /**
      * @param  Closure(Location): mixed  $callback
      * @return Collection<int, mixed>

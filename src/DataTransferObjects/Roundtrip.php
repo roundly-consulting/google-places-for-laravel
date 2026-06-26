@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace RoundlyConsulting\GooglePlaces\DataTransferObjects;
 
 use Carbon\CarbonInterval;
+use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
 
 final readonly class Roundtrip
 {
+    public TravelMode $type;
+
     /**
      * @param  list<Distance>  $distances
      */
@@ -17,31 +20,31 @@ final readonly class Roundtrip
         public int $distanceInMeters,
         public string $humanReadableDuration,
         public int $durationInSeconds,
-        public string $type = 'driving',
-    ) {}
+        TravelMode|string $type = TravelMode::Driving,
+    ) {
+        $this->type = $type instanceof TravelMode ? $type : TravelMode::from($type);
+    }
 
     /**
-     * @param  array<int, mixed>  $distances
+     * Map several Routes API `computeRouteMatrix` elements into one trip total.
+     *
+     * @param  array<int, mixed>  $elements
      */
-    public static function fromGoogleResponse(array $distances, string $type = 'driving'): self
+    public static function fromRoutesElements(array $elements, TravelMode $type = TravelMode::Driving): self
     {
         $items = array_map(
-            static fn (mixed $distance): Distance => Distance::fromGoogleResponse((array) $distance, $type),
-            array_values($distances),
+            static fn (mixed $element): Distance => Distance::fromRoutesElement((array) $element, $type),
+            array_values($elements),
         );
 
         $distanceInMeters = array_sum(array_map(static fn (Distance $d): int => $d->distanceInMeters, $items));
         $durationInSeconds = array_sum(array_map(static fn (Distance $d): int => $d->durationInSeconds, $items));
 
-        $humanReadableDuration = CarbonInterval::seconds($durationInSeconds)
-            ->cascade()
-            ->forHumans(short: true);
-
         return new self(
             distances: $items,
-            humanReadableDistance: round($distanceInMeters / 1000, 2).'km',
+            humanReadableDistance: Distance::metersToHuman($distanceInMeters),
             distanceInMeters: $distanceInMeters,
-            humanReadableDuration: $humanReadableDuration,
+            humanReadableDuration: CarbonInterval::seconds($durationInSeconds)->cascade()->forHumans(short: true),
             durationInSeconds: $durationInSeconds,
             type: $type,
         );

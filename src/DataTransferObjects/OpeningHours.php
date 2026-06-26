@@ -15,15 +15,17 @@ final readonly class OpeningHours
     ) {}
 
     /**
+     * Map a Places API (New) `regularOpeningHours` object.
+     *
      * @param  array<string, mixed>  $item
      */
-    public static function fromGoogleResponse(array $item): self
+    public static function fromResponse(array $item): self
     {
         return new self(
-            isOpen: (bool) $item['open_now'],
+            isOpen: (bool) ($item['openNow'] ?? false),
             periods: array_map(
-                static fn (mixed $period): OpeningHourPeriod => OpeningHourPeriod::fromGoogleResponse((array) $period),
-                array_values((array) $item['periods']),
+                static fn (mixed $period): OpeningHourPeriod => OpeningHourPeriod::fromResponse((array) $period),
+                array_values((array) ($item['periods'] ?? [])),
             ),
         );
     }

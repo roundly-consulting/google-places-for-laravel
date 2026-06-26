@@ -18,7 +18,7 @@ final readonly class AddressComponent
     /**
      * @param  array<string, mixed>  $item
      */
-    public static function fromGoogleResponse(array $item): self
+    public static function fromResponse(array $item): self
     {
         return new self(
             longName: (string) $item['long_name'],

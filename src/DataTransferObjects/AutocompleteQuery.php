@@ -4,166 +4,112 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\GooglePlaces\DataTransferObjects;
 
-final class AutocompleteQuery
+use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+
+final readonly class AutocompleteQuery
 {
     /**
-     * @param  list<string>  $components
-     * @param  list<string>  $types
+     * @param  list<string>  $includedPrimaryTypes
+     * @param  list<string>  $includedRegionCodes
+     *
+     * @throws PlacesException
      */
     public function __construct(
-        public string $query = '',
-        public array $components = [],
+        public string $input = '',
         public string $language = 'en',
-        public LocationDefinition $locationBias = new LocationDefinition('ipbias'),
+        public array $includedPrimaryTypes = [],
+        public LocationDefinition $locationBias = new LocationDefinition,
         public LocationDefinition $locationRestriction = new LocationDefinition,
-        public ?int $offset = null,
+        public array $includedRegionCodes = [],
         public ?Location $origin = null,
-        public ?string $region = null,
         public ?string $sessionToken = null,
-        public bool $strictBounds = false,
-        public array $types = [],
-    ) {}
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function toRequest(): array
-    {
-        $query = [
-            'input' => $this->query,
-            'language' => $this->language,
-        ];
-
-        if (count($this->components) > 0) {
-            $query['components'] = implode('|', $this->components);
+    ) {
+        if (count($includedPrimaryTypes) > 5) {
+            throw PlacesException::tooManyPrimaryTypes();
         }
 
-        if (count($this->types) > 0) {
-            $query['types'] = implode('|', $this->types);
+        if (count($includedRegionCodes) > 15) {
+            throw PlacesException::tooManyRegionCodes();
         }
-
-        if ($this->locationBias->value !== null) {
-            $query['locationbias'] = $this->locationBias->value;
-        }
-
-        if ($this->locationRestriction->value !== null) {
-            $query['locationrestriction'] = $this->locationRestriction->value;
-        }
-
-        if ($this->offset !== null) {
-            $query['offset'] = $this->offset;
-        }
-
-        if ($this->origin instanceof Location) {
-            $query['origin'] = $this->origin->toRequest();
-        }
-
-        if ($this->region !== null) {
-            $query['region'] = $this->region;
-        }
-
-        if ($this->sessionToken !== null) {
-            $query['sessiontoken'] = $this->sessionToken;
-        }
-
-        if ($this->strictBounds) {
-            $query['strictbounds'] = $this->strictBounds;
-        }
-
-        return $query;
     }
 
-    public function query(string $query): self
+    public function withInput(string $input): self
     {
-        $this->query = $query;
-
-        return $this;
-    }
-
-    /**
-     * @param  list<string>  $components
-     */
-    public function withComponents(array $components): self
-    {
-        $this->components = $components;
-
-        return $this;
+        return new self($input, $this->language, $this->includedPrimaryTypes, $this->locationBias, $this->locationRestriction, $this->includedRegionCodes, $this->origin, $this->sessionToken);
     }
 
     public function inLanguage(string $language): self
     {
-        $this->language = $language;
+        return new self($this->input, $language, $this->includedPrimaryTypes, $this->locationBias, $this->locationRestriction, $this->includedRegionCodes, $this->origin, $this->sessionToken);
+    }
 
-        return $this;
+    public function ofType(string ...$types): self
+    {
+        return new self($this->input, $this->language, array_values($types), $this->locationBias, $this->locationRestriction, $this->includedRegionCodes, $this->origin, $this->sessionToken);
     }
 
     public function preferInArea(LocationDefinition $location): self
     {
-        $this->locationBias = $location;
-
-        return $this;
+        return new self($this->input, $this->language, $this->includedPrimaryTypes, $location, $this->locationRestriction, $this->includedRegionCodes, $this->origin, $this->sessionToken);
     }
 
-    public function preferInAreaByIpAddress(): self
+    public function restrictTo(LocationDefinition $location): self
     {
-        $this->locationBias = new LocationDefinition('ipbias');
-
-        return $this;
+        return new self($this->input, $this->language, $this->includedPrimaryTypes, $this->locationBias, $location, $this->includedRegionCodes, $this->origin, $this->sessionToken);
     }
 
-    public function restrictLocationBy(LocationDefinition $location): self
+    public function inRegions(string ...$codes): self
     {
-        $this->locationRestriction = $location;
-
-        return $this;
+        return new self($this->input, $this->language, $this->includedPrimaryTypes, $this->locationBias, $this->locationRestriction, array_values($codes), $this->origin, $this->sessionToken);
     }
 
-    public function withoutLocationRestriction(): self
+    public function fromOrigin(?Location $origin): self
     {
-        $this->locationRestriction = new LocationDefinition;
-
-        return $this;
-    }
-
-    public function ofType(string ...$type): self
-    {
-        $this->types = array_values($type);
-
-        return $this;
-    }
-
-    public function withStrictBoundary(bool $value = true): self
-    {
-        $this->strictBounds = $value;
-
-        return $this;
+        return new self($this->input, $this->language, $this->includedPrimaryTypes, $this->locationBias, $this->locationRestriction, $this->includedRegionCodes, $origin, $this->sessionToken);
     }
 
     public function usingSessionToken(string $token): self
     {
-        $this->sessionToken = $token;
-
-        return $this;
+        return new self($this->input, $this->language, $this->includedPrimaryTypes, $this->locationBias, $this->locationRestriction, $this->includedRegionCodes, $this->origin, $token);
     }
 
-    public function inRegion(string $region): self
+    /**
+     * @return array<string, mixed>
+     */
+    public function toBody(): array
     {
-        $this->region = $region;
+        $body = [
+            'input' => $this->input,
+            'languageCode' => $this->language,
+        ];
 
-        return $this;
-    }
+        if (count($this->includedPrimaryTypes) > 0) {
+            $body['includedPrimaryTypes'] = $this->includedPrimaryTypes;
+        }
 
-    public function fromOrigin(?Location $location): self
-    {
-        $this->origin = $location;
+        if ($this->locationBias->value !== null) {
+            $body['locationBias'] = $this->locationBias->value;
+        }
 
-        return $this;
-    }
+        if ($this->locationRestriction->value !== null) {
+            $body['locationRestriction'] = $this->locationRestriction->value;
+        }
 
-    public function usingOffset(?int $offset): self
-    {
-        $this->offset = $offset;
+        if (count($this->includedRegionCodes) > 0) {
+            $body['includedRegionCodes'] = $this->includedRegionCodes;
+        }
 
-        return $this;
+        if ($this->origin instanceof Location) {
+            $body['origin'] = [
+                'latitude' => $this->origin->latitude,
+                'longitude' => $this->origin->longitude,
+            ];
+        }
+
+        if ($this->sessionToken !== null) {
+            $body['sessionToken'] = $this->sessionToken;
+        }
+
+        return $body;
     }
 }

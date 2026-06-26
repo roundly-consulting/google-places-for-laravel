@@ -13,21 +13,30 @@ final readonly class AutocompletePrediction
     public function __construct(
         public string $description,
         public string $placeId,
-        public string $reference,
-        public array $types,
-        public array $raw,
+        public array $types = [],
+        public ?string $mainText = null,
+        public ?string $secondaryText = null,
+        public array $raw = [],
     ) {}
 
     /**
+     * Map a Places API (New) `suggestions[].placePrediction` object.
+     *
      * @param  array<string, mixed>  $item
      */
-    public static function fromGoogleResponse(array $item): self
+    public static function fromResponse(array $item): self
     {
+        $text = (array) ($item['text'] ?? []);
+        $structured = (array) ($item['structuredFormat'] ?? []);
+        $mainText = (array) ($structured['mainText'] ?? []);
+        $secondaryText = (array) ($structured['secondaryText'] ?? []);
+
         return new self(
-            description: (string) $item['description'],
-            placeId: (string) $item['place_id'],
-            reference: (string) $item['reference'],
-            types: array_map(strval(...), array_values((array) $item['types'])),
+            description: (string) ($text['text'] ?? ''),
+            placeId: (string) ($item['placeId'] ?? ''),
+            types: array_map(strval(...), array_values((array) ($item['types'] ?? []))),
+            mainText: isset($mainText['text']) ? (string) $mainText['text'] : null,
+            secondaryText: isset($secondaryText['text']) ? (string) $secondaryText['text'] : null,
             raw: $item,
         );
     }

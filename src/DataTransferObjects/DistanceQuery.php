@@ -5,46 +5,93 @@ declare(strict_types=1);
 namespace RoundlyConsulting\GooglePlaces\DataTransferObjects;
 
 use Illuminate\Support\Carbon;
+use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
 
-final class DistanceQuery
+final readonly class DistanceQuery
 {
+    public TravelMode $type;
+
     public function __construct(
         public Location $from,
         public Location|MultipleLocations $to,
-        public string $type = 'driving',
+        TravelMode|string $type = TravelMode::Driving,
         public ?Carbon $departureAt = null,
-    ) {}
+    ) {
+        $this->type = $type instanceof TravelMode ? $type : TravelMode::from($type);
+    }
 
     public function driving(): self
     {
-        $this->type = 'driving';
-
-        return $this;
+        return new self($this->from, $this->to, TravelMode::Driving, $this->departureAt);
     }
 
     public function walking(): self
     {
-        $this->type = 'walking';
+        return new self($this->from, $this->to, TravelMode::Walking, $this->departureAt);
+    }
 
-        return $this;
+    public function bicycling(): self
+    {
+        return new self($this->from, $this->to, TravelMode::Bicycling, $this->departureAt);
+    }
+
+    public function transit(): self
+    {
+        return new self($this->from, $this->to, TravelMode::Transit, $this->departureAt);
+    }
+
+    public function travellingBy(TravelMode $mode): self
+    {
+        return new self($this->from, $this->to, $mode, $this->departureAt);
+    }
+
+    public function departingAt(?Carbon $departureAt): self
+    {
+        return new self($this->from, $this->to, $this->type, $departureAt);
+    }
+
+    /**
+     * Build the Routes API `computeRouteMatrix` body.
+     *
+     * @return array<string, mixed>
+     */
+    public function toRoutesBody(): array
+    {
+        $destinations = $this->to instanceof MultipleLocations
+            ? $this->to->map(fn (Location $location): array => $this->waypoint($location))->all()
+            : [$this->waypoint($this->to)];
+
+        $body = [
+            'origins' => [$this->waypoint($this->from)],
+            'destinations' => array_values($destinations),
+            'travelMode' => $this->type->routesValue(),
+        ];
+
+        if ($this->departureAt !== null) {
+            $body['departureTime'] = $this->departureAt->toIso8601ZuluString();
+
+            if ($this->type === TravelMode::Driving) {
+                $body['routingPreference'] = 'TRAFFIC_AWARE';
+            }
+        }
+
+        return $body;
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function toRequest(): array
+    private function waypoint(Location $location): array
     {
-        $request = [
-            'destinations' => $this->to->toRequest(),
-            'origins' => $this->from->toRequest(),
-            'mode' => $this->type,
-            'language' => 'en',
+        return [
+            'waypoint' => [
+                'location' => [
+                    'latLng' => [
+                        'latitude' => $location->latitude,
+                        'longitude' => $location->longitude,
+                    ],
+                ],
+            ],
         ];
-
-        if ($this->departureAt !== null) {
-            $request['departure_time'] = $this->departureAt->timestamp;
-        }
-
-        return $request;
     }
 }
