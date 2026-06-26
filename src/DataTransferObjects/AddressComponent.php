@@ -16,6 +16,8 @@ final readonly class AddressComponent
     ) {}
 
     /**
+     * Map a Geocoding API `address_components[]` entry (`long_name`/`short_name`).
+     *
      * @param  array<string, mixed>  $item
      */
     public static function fromResponse(array $item): self
@@ -24,6 +26,22 @@ final readonly class AddressComponent
             longName: (string) $item['long_name'],
             shortName: (string) $item['short_name'],
             types: array_map(strval(...), array_values((array) $item['types'])),
+        );
+    }
+
+    /**
+     * Map a Places API (New) `addressComponents[]` entry (`longText`/`shortText`).
+     *
+     * @param  array<string, mixed>  $item
+     */
+    public static function fromPlace(array $item): self
+    {
+        $longText = (string) ($item['longText'] ?? '');
+
+        return new self(
+            longName: $longText,
+            shortName: (string) ($item['shortText'] ?? $longText),
+            types: array_map(strval(...), array_values((array) ($item['types'] ?? []))),
         );
     }
 }

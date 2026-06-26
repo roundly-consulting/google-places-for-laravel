@@ -19,6 +19,14 @@ final readonly class ReverseGeocodingResult
     ) {}
 
     /**
+     * Typed accessors (street, city, country, …) over the address components.
+     */
+    public function components(): AddressComponents
+    {
+        return new AddressComponents($this->components);
+    }
+
+    /**
      * @param  array<string, mixed>  $item
      */
     public static function fromResponse(array $item): self
