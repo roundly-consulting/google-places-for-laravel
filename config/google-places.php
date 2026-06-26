@@ -87,4 +87,37 @@ return [
         'ttl' => (int) env('GOOGLE_PLACES_CACHE_TTL', 86400),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Search Pagination
+    |--------------------------------------------------------------------------
+    |
+    | The paginated search helpers transparently follow Google's
+    | `nextPageToken`. `max_pages` is a safety cap so a runaway result set can
+    | never make an unbounded number of billed requests; when the cap is hit
+    | with more pages still available, a warning is logged and paging stops.
+    |
+    */
+
+    'pagination' => [
+        'max_pages' => (int) env('GOOGLE_PLACES_MAX_PAGES', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Request Logging
+    |--------------------------------------------------------------------------
+    |
+    | Opt-in logging of every call (endpoint, HTTP status, Google status, and
+    | duration) built on the PlacesResponseReceived / PlacesRequestFailed
+    | events. The API key is never logged. Leave `channel` null to use the
+    | application's default log channel.
+    |
+    */
+
+    'logging' => [
+        'enabled' => (bool) env('GOOGLE_PLACES_LOGGING', false),
+        'channel' => env('GOOGLE_PLACES_LOG_CHANNEL'),
+    ],
+
 ];
