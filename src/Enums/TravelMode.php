@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\GooglePlaces\Enums;
 
+use RoundlyConsulting\Enums\Helpers;
+
 enum TravelMode: string
 {
+    use Helpers;
+
     case Driving = 'driving';
     case Walking = 'walking';
     case Bicycling = 'bicycling';
