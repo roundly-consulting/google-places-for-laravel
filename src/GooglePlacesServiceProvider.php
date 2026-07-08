@@ -7,10 +7,12 @@ namespace RoundlyConsulting\GooglePlaces;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
+use RoundlyConsulting\Geolocation\GeolocationManager;
 use RoundlyConsulting\GooglePlaces\Commands\CheckCommand;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
+use RoundlyConsulting\GooglePlaces\Geolocation\GooglePlacesProvider;
 use RoundlyConsulting\GooglePlaces\Listeners\LogPlacesActivity;
 
 final class GooglePlacesServiceProvider extends ServiceProvider
@@ -31,6 +33,14 @@ final class GooglePlacesServiceProvider extends ServiceProvider
         $events = $this->app->make(Dispatcher::class);
         $events->listen(PlacesResponseReceived::class, [LogPlacesActivity::class, 'handleResponseReceived']);
         $events->listen(PlacesRequestFailed::class, [LogPlacesActivity::class, 'handleRequestFailed']);
+
+        // Register Google Places as a geolocation driver so a host running
+        // geolocation-for-laravel can forward-/reverse-geocode through it by
+        // adding `google_places` to its pipeline (or Geolocation::provider(...)).
+        $this->app->make(GeolocationManager::class)->extend(
+            'google_places',
+            fn (): GooglePlacesProvider => new GooglePlacesProvider($this->app->make(PlacesClient::class)),
+        );
 
         if ($this->app->runningInConsole()) {
             $this->commands([

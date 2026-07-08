@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace RoundlyConsulting\GooglePlaces\Tests;
 
 use Orchestra\Testbench\TestCase as Orchestra;
+use RoundlyConsulting\Geolocation\GeolocationServiceProvider;
 use RoundlyConsulting\GooglePlaces\GooglePlacesServiceProvider;
+use RoundlyConsulting\HttpClientRateLimits\HttpClientRateLimitsServiceProvider;
 
 abstract class TestCase extends Orchestra
 {
@@ -15,6 +17,8 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            HttpClientRateLimitsServiceProvider::class,
+            GeolocationServiceProvider::class,
             GooglePlacesServiceProvider::class,
         ];
     }
