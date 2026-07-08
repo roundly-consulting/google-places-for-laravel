@@ -11,3 +11,5 @@ node_modules
 
 # Local live smoke test (not shipped)
 /test.php
+
+composer.lock
