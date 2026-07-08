@@ -120,4 +120,53 @@ return [
         'channel' => env('GOOGLE_PLACES_LOG_CHANNEL'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Client-side Rate Limiting
+    |--------------------------------------------------------------------------
+    |
+    | Pace outbound calls per Google API surface (places / routes / geocoding)
+    | through http-client-rate-limits-for-laravel, each keyed
+    | `google-places:{surface}:{owner}`. Requests wait for their window to free
+    | up by default; set a surface's `max_wait` (ms) to fail fast with a typed
+    | PlacesException instead. With `adaptive` on, a 429 `Retry-After` from
+    | Google self-tunes the limiter. Set a surface's `enabled` to false to send
+    | it unthrottled. `owner` is shared across surfaces so several apps sharing
+    | one key can each carry their own budget.
+    |
+    */
+
+    'rate_limits' => [
+
+        'owner' => env('GOOGLE_PLACES_RATELIMIT_OWNER', 'app'),
+
+        'places' => [
+            'enabled' => (bool) env('GOOGLE_PLACES_PLACES_RATELIMIT_ENABLED', true),
+            'limit' => (int) env('GOOGLE_PLACES_PLACES_RATELIMIT', 600),
+            'per' => env('GOOGLE_PLACES_PLACES_RATELIMIT_PER', 'minute'),
+            'adaptive' => (bool) env('GOOGLE_PLACES_PLACES_RATELIMIT_ADAPTIVE', true),
+            'max_wait' => env('GOOGLE_PLACES_PLACES_RATELIMIT_MAX_WAIT'),
+            'jitter' => env('GOOGLE_PLACES_PLACES_RATELIMIT_JITTER'),
+        ],
+
+        'routes' => [
+            'enabled' => (bool) env('GOOGLE_PLACES_ROUTES_RATELIMIT_ENABLED', true),
+            'limit' => (int) env('GOOGLE_PLACES_ROUTES_RATELIMIT', 600),
+            'per' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_PER', 'minute'),
+            'adaptive' => (bool) env('GOOGLE_PLACES_ROUTES_RATELIMIT_ADAPTIVE', true),
+            'max_wait' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_MAX_WAIT'),
+            'jitter' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_JITTER'),
+        ],
+
+        'geocoding' => [
+            'enabled' => (bool) env('GOOGLE_PLACES_GEOCODING_RATELIMIT_ENABLED', true),
+            'limit' => (int) env('GOOGLE_PLACES_GEOCODING_RATELIMIT', 600),
+            'per' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_PER', 'minute'),
+            'adaptive' => (bool) env('GOOGLE_PLACES_GEOCODING_RATELIMIT_ADAPTIVE', true),
+            'max_wait' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_MAX_WAIT'),
+            'jitter' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_JITTER'),
+        ],
+
+    ],
+
 ];

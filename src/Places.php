@@ -12,6 +12,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use RoundlyConsulting\GooglePlaces\Concerns\InteractsWithRateLimits;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompleteQuery;
@@ -37,6 +38,8 @@ use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
 
 final class Places implements PlacesClient
 {
+    use InteractsWithRateLimits;
+
     private float $startedAt = 0.0;
 
     public function __construct(
@@ -364,10 +367,23 @@ final class Places implements PlacesClient
         $this->startedAt = microtime(true);
 
         try {
-            return $request();
+            return $this->throttled($this->surfaceFor($endpoint), $request);
         } catch (ConnectionException $exception) {
             throw $this->connectionFailed($endpoint, $exception);
         }
+    }
+
+    /**
+     * Map an endpoint to its Google API surface so each is rate-limited on its
+     * own bucket (mirrors the `hosts` grouping).
+     */
+    private function surfaceFor(string $endpoint): string
+    {
+        return match ($endpoint) {
+            'distance', 'computeMatrix' => 'routes',
+            'geocode', 'geocodeAddress' => 'geocoding',
+            default => 'places',
+        };
     }
 
     private function received(string $endpoint, Response $response): void
