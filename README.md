@@ -15,8 +15,22 @@ transfer objects.
 
 Built entirely on Laravel's own HTTP client, with header authentication
 (`X-Goog-Api-Key`), required field masks, configurable timeouts/retries, optional response
-caching, lifecycle events, and a first-class `GooglePlaces::fake()` testing helper. No
-third-party runtime dependencies.
+caching, lifecycle events, and a first-class `GooglePlaces::fake()` testing helper.
+
+## Integrates with
+
+This package builds on three lower-tier roundly-consulting packages (its only runtime
+dependencies besides Laravel):
+
+- **[enums-for-laravel](https://github.com/roundly-consulting/enums-for-laravel)** — the
+  `TravelMode` enum gains `values()`, `labels()`, `options()`, `validationRule()`,
+  `readable()`, and case lookups on top of its own `routesValue()`.
+- **[geolocation-for-laravel](https://github.com/roundly-consulting/geolocation-for-laravel)** —
+  Google Places registers itself as a `google_places` geolocation driver, so a host running
+  geolocation can forward-/reverse-geocode through Google Places. See
+  [Geolocation driver](#geolocation-driver).
+- **[http-client-rate-limits-for-laravel](https://github.com/roundly-consulting/http-client-rate-limits-for-laravel)** —
+  every outbound call is paced per Google API surface. See [Rate limiting](#rate-limiting).
 
 ## Requirements
 
@@ -68,6 +82,13 @@ The package works with zero extra configuration once the key is set. Every value
 | `pagination.max_pages` | `int` | `5` | `GOOGLE_PLACES_MAX_PAGES` | Safety cap for the paginated search helpers; a warning is logged when hit. |
 | `logging.enabled` | `bool` | `false` | `GOOGLE_PLACES_LOGGING` | Log every call (endpoint, status, duration). The API key is never logged. |
 | `logging.channel` | `?string` | `null` | `GOOGLE_PLACES_LOG_CHANNEL` | Log channel to write to (null = default channel). |
+| `rate_limits.owner` | `string` | `app` | `GOOGLE_PLACES_RATELIMIT_OWNER` | Bucket owner, shared across surfaces (`google-places:{surface}:{owner}`). |
+| `rate_limits.{surface}.enabled` | `bool` | `true` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_ENABLED` | Throttle this surface (`places`/`routes`/`geocoding`); `false` = unthrottled. |
+| `rate_limits.{surface}.limit` | `int` | `600` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT` | Max requests per window. |
+| `rate_limits.{surface}.per` | `string` | `minute` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_PER` | Window: `second`, `minute`, `hour`, `day`. |
+| `rate_limits.{surface}.adaptive` | `bool` | `true` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_ADAPTIVE` | Self-tune from a 429 `Retry-After`. |
+| `rate_limits.{surface}.max_wait` | `?int` | `null` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_MAX_WAIT` | Fail fast (ms) instead of pacing; `null` = pace. |
+| `rate_limits.{surface}.jitter` | `?int` | `null` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_JITTER` | Random spread (ms) added to a defer. |
 
 > **Field masks:** the Places API (New) and Routes API require an `X-Goog-FieldMask` header
 > naming the fields to return. The defaults are conservative; trim them in config so you pay
@@ -478,6 +499,82 @@ the output):
 
 ```bash
 php artisan google-places:check
+```
+
+## Geolocation driver
+
+When [geolocation-for-laravel](https://github.com/roundly-consulting/geolocation-for-laravel)
+is installed, this package auto-registers a `google_places` driver on the geolocation
+manager. It forward-geocodes **addresses** and reverse-geocodes **coordinates** through
+Google Places, mapping the result onto geolocation's own `Location` DTO. (Google Places has
+no IP geolocation, so IP-only lookups fall through to the next provider.)
+
+Opt the driver into your geolocation pipeline, or call it ad-hoc:
+
+```php
+// config/geolocation.php — consult google_places in your resolution order:
+'pipeline' => ['maxmind_database', 'google_places', 'default'],
+```
+
+```php
+use RoundlyConsulting\Geolocation\DataTransferObjects\Coordinates;
+use RoundlyConsulting\Geolocation\Facades\Geolocation;
+
+// Ad-hoc, scoped to the driver for a single call:
+$location = Geolocation::provider('google_places')->locateAddress('Bratislava, Slovakia');
+$location = Geolocation::provider('google_places')->locateCoordinates(new Coordinates(48.1486, 17.1077));
+
+echo $location?->humanReadable;
+echo $location?->countryIsoCode;
+```
+
+## Rate limiting
+
+Every outbound call is paced through
+[http-client-rate-limits-for-laravel](https://github.com/roundly-consulting/http-client-rate-limits-for-laravel),
+on a **per-surface** budget keyed `google-places:{surface}:{owner}` where `surface` is one
+of `places`, `routes`, or `geocoding`. Requests wait for their window to free up by default;
+with `adaptive` on (the default), a `429 Retry-After` from Google self-tunes the limiter.
+
+Tune each surface in `config/google-places.php` (see the config table) or via env:
+
+```dotenv
+GOOGLE_PLACES_GEOCODING_RATELIMIT=300
+GOOGLE_PLACES_GEOCODING_RATELIMIT_PER=minute
+GOOGLE_PLACES_ROUTES_RATELIMIT_ENABLED=false   # send this surface unthrottled
+GOOGLE_PLACES_PLACES_RATELIMIT_MAX_WAIT=2000    # fail fast (ms) instead of pacing
+```
+
+When a surface is set to fail fast (`max_wait`) and the wait would exceed it, the call
+throws a typed `PlacesException::rateLimited()` — a `PlacesException` (so existing
+`catch (PlacesException)` sites keep working) carrying `$e->rateLimitedSurface` and
+`$e->availableInSeconds`.
+
+## Address autocomplete + validation (host recipe)
+
+Google Places pairs naturally with
+[addresses-for-laravel](https://github.com/roundly-consulting/addresses-for-laravel): wire
+`GooglePlaces::autocomplete()` into your address form and `GooglePlaces::geocodeAddress()`
+to normalise the chosen address into structured fields for `HasAddresses`. This is a
+host-app recipe (no dependency wiring — the tier DAG keeps addresses below google-places):
+
+```php
+use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
+
+// While the user types — suggest addresses:
+$predictions = GooglePlaces::autocomplete($request->input('q'));
+
+// On submit — normalise the chosen address into structured fields:
+$result = GooglePlaces::geocodeAddress($request->input('address'))->first();
+
+$model->addAddress([
+    'street'      => $result?->components()->street(),
+    'city'        => $result?->components()->city(),
+    'postal_code' => $result?->components()->postalCode(),
+    'country'     => $result?->components()->countryCode(),
+    'latitude'    => $result?->geometry->location->latitude,
+    'longitude'   => $result?->geometry->location->longitude,
+]);
 ```
 
 ## Testing
