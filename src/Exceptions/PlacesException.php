@@ -8,16 +8,14 @@ use Exception;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 
-final class PlacesException extends Exception
+class PlacesException extends Exception
 {
-    private function __construct(
+    protected function __construct(
         string $message,
         int $code = 0,
         public readonly ?string $googleStatus = null,
         public readonly ?string $googleErrorMessage = null,
         public readonly ?Response $response = null,
-        public readonly ?string $rateLimitedSurface = null,
-        public readonly ?int $availableInSeconds = null,
     ) {
         parent::__construct($message, $code);
     }
@@ -33,20 +31,6 @@ final class PlacesException extends Exception
             $status,
             is_string($errorMessage) ? $errorMessage : null,
             $response,
-        );
-    }
-
-    /**
-     * The client-side rate limiter would defer past its `max_wait` ceiling for
-     * the given API surface (the opt-in fail-fast path).
-     */
-    public static function rateLimited(string $surface, int $availableInSeconds): self
-    {
-        return new self(
-            "Google Places rate limit for the [{$surface}] surface exceeded. Retry in {$availableInSeconds} second(s).",
-            code: 429,
-            rateLimitedSurface: $surface,
-            availableInSeconds: $availableInSeconds,
         );
     }
 

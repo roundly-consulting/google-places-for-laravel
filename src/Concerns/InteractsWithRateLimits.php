@@ -6,7 +6,7 @@ namespace RoundlyConsulting\GooglePlaces\Concerns;
 
 use Closure;
 use Illuminate\Http\Client\Response;
-use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+use RoundlyConsulting\GooglePlaces\Exceptions\RateLimitExceededException as PlacesRateLimitExceededException;
 use RoundlyConsulting\HttpClientRateLimits\Enums\Timespan;
 use RoundlyConsulting\HttpClientRateLimits\Exceptions\RateLimitExceededException;
 use RoundlyConsulting\HttpClientRateLimits\Limit;
@@ -62,8 +62,9 @@ trait InteractsWithRateLimits
 
     /**
      * Send a request through its surface's rate limiter, translating hcrl's own
-     * exhaustion exception into a typed PlacesException so existing
-     * `catch (PlacesException)` sites keep catching everything.
+     * exhaustion exception into the package's RateLimitExceededException — a
+     * PlacesException (so `catch (PlacesException)` sites keep catching
+     * everything) that also carries the toolkit's HasRetryAfter hint.
      *
      * @param  Closure(): Response  $send
      */
@@ -81,9 +82,9 @@ trait InteractsWithRateLimits
 
             return $response;
         } catch (RateLimitExceededException $exception) {
-            throw PlacesException::rateLimited(
+            throw PlacesRateLimitExceededException::for(
                 surface: $surface,
-                availableInSeconds: (int) ceil($exception->delayMs / 1000),
+                retryAfterSeconds: (int) ceil($exception->delayMs / 1000),
             );
         }
     }

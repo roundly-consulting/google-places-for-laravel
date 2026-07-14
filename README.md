@@ -19,9 +19,13 @@ caching, lifecycle events, and a first-class `GooglePlaces::fake()` testing help
 
 ## Integrates with
 
-This package builds on three lower-tier roundly-consulting packages (its only runtime
+This package builds on four lower-tier roundly-consulting packages (its only runtime
 dependencies besides Laravel):
 
+- **[package-toolkit-for-laravel](https://github.com/roundly-consulting/package-toolkit-for-laravel)** —
+  the service provider is built on the toolkit's package builder (config, commands, publish
+  tags, an `about` section), and the rate-limit exception carries the toolkit's
+  `HasRetryAfter` contract.
 - **[enums-for-laravel](https://github.com/roundly-consulting/enums-for-laravel)** — the
   `TravelMode` enum gains `values()`, `labels()`, `options()`, `validationRule()`,
   `readable()`, and case lookups on top of its own `routesValue()`.
@@ -546,9 +550,24 @@ GOOGLE_PLACES_PLACES_RATELIMIT_MAX_WAIT=2000    # fail fast (ms) instead of paci
 ```
 
 When a surface is set to fail fast (`max_wait`) and the wait would exceed it, the call
-throws a typed `PlacesException::rateLimited()` — a `PlacesException` (so existing
-`catch (PlacesException)` sites keep working) carrying `$e->rateLimitedSurface` and
-`$e->availableInSeconds`.
+throws `RoundlyConsulting\GooglePlaces\Exceptions\RateLimitExceededException` — a
+`PlacesException` (so existing `catch (PlacesException)` sites keep working) carrying
+`$e->surface` and, through the package toolkit's `HasRetryAfter` contract,
+`$e->retryAfterSeconds()`:
+
+```php
+use RoundlyConsulting\PackageToolkit\Contracts\HasRetryAfter;
+
+try {
+    GooglePlaces::textSearch('coffee');
+} catch (PlacesException $e) {
+    if ($e instanceof HasRetryAfter) {
+        return response('Slow down', 429, ['Retry-After' => $e->retryAfterSeconds()]);
+    }
+
+    throw $e;
+}
+```
 
 ## Address autocomplete + validation (host recipe)
 

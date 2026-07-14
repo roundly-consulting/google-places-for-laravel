@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Http;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+use RoundlyConsulting\GooglePlaces\Exceptions\RateLimitExceededException;
 use RoundlyConsulting\HttpClientRateLimits\Facades\RateLimits;
+use RoundlyConsulting\PackageToolkit\Contracts\HasRetryAfter;
 
 function geocodeOk(): array
 {
@@ -58,10 +60,17 @@ it('throws a typed PlacesException when max_wait is exceeded', function () {
         places()->geocodeAddress('b');
         $this->fail('Expected a rate-limited PlacesException.');
     } catch (PlacesException $exception) {
-        expect($exception->rateLimitedSurface)->toBe('geocoding')
-            ->and($exception->availableInSeconds)->toBeGreaterThan(0)
+        expect($exception)->toBeInstanceOf(RateLimitExceededException::class)
+            ->and($exception)->toBeInstanceOf(HasRetryAfter::class)
+            ->and($exception->surface)->toBe('geocoding')
+            ->and($exception->retryAfterSeconds())->toBeGreaterThan(0)
+            ->and($exception->getMessage())->toContain('[geocoding]')
             ->and($exception->getCode())->toBe(429);
     }
+});
+
+it('does not advertise a retry hint on a non-rate-limit failure', function () {
+    expect(PlacesException::missingApiKey())->not->toBeInstanceOf(HasRetryAfter::class);
 });
 
 it('bypasses the limiter entirely when a surface is disabled', function () {
