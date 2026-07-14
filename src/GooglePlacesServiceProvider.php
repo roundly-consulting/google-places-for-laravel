@@ -6,7 +6,6 @@ namespace RoundlyConsulting\GooglePlaces;
 
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\ServiceProvider;
 use RoundlyConsulting\Geolocation\GeolocationManager;
 use RoundlyConsulting\GooglePlaces\Commands\CheckCommand;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
@@ -14,12 +13,33 @@ use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 use RoundlyConsulting\GooglePlaces\Geolocation\GooglePlacesProvider;
 use RoundlyConsulting\GooglePlaces\Listeners\LogPlacesActivity;
+use RoundlyConsulting\PackageToolkit\Package;
+use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 
-final class GooglePlacesServiceProvider extends ServiceProvider
+final class GooglePlacesServiceProvider extends PackageServiceProvider
 {
+    public function configurePackage(Package $package): void
+    {
+        $package
+            ->name('google-places')
+            ->hasConfigFile()
+            ->hasCommands([
+                CheckCommand::class,
+            ])
+            ->contributesToAbout(static function (): array {
+                $key = config('google-places.key');
+
+                return [
+                    'API key' => is_string($key) && $key !== '' ? 'SET' : 'MISSING',
+                    'Cache' => config('google-places.cache.enabled') === true ? 'ENABLED' : 'OFF',
+                    'Logging' => config('google-places.logging.enabled') === true ? 'ENABLED' : 'OFF',
+                ];
+            });
+    }
+
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/google-places.php', 'google-places');
+        parent::register();
 
         $this->app->singleton(PlacesClient::class, static fn (Application $app): Places => new Places(
             $app->make(Dispatcher::class),
@@ -30,6 +50,8 @@ final class GooglePlacesServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        parent::boot();
+
         $events = $this->app->make(Dispatcher::class);
         $events->listen(PlacesResponseReceived::class, [LogPlacesActivity::class, 'handleResponseReceived']);
         $events->listen(PlacesRequestFailed::class, [LogPlacesActivity::class, 'handleRequestFailed']);
@@ -41,15 +63,5 @@ final class GooglePlacesServiceProvider extends ServiceProvider
             'google_places',
             fn (): GooglePlacesProvider => new GooglePlacesProvider($this->app->make(PlacesClient::class)),
         );
-
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                CheckCommand::class,
-            ]);
-
-            $this->publishes([
-                __DIR__.'/../config/google-places.php' => config_path('google-places.php'),
-            ], 'google-places-config');
-        }
     }
 }
