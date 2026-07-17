@@ -31,7 +31,11 @@ trait InteractsWithRateLimits
     protected function rateLimiter(string $surface): ?RateLimit
     {
         /** @var array<string, mixed> $config */
-        $config = config("google-places.rate_limits.{$surface}", []);
+        $config = match ($surface) {
+            'routes' => config('google-places.rate_limits.routes', []),
+            'geocoding' => config('google-places.rate_limits.geocoding', []),
+            default => config('google-places.rate_limits.places', []),
+        };
 
         if (($config['enabled'] ?? true) === false) {
             return null;

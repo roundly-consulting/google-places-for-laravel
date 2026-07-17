@@ -12,6 +12,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use InvalidArgumentException;
 use RoundlyConsulting\GooglePlaces\Concerns\InteractsWithRateLimits;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
@@ -470,14 +471,39 @@ final class Places implements PlacesClient
         return is_string($store) ? $store : null;
     }
 
+    /**
+     * Literal keys rather than `config("google-places.field_masks.{$endpoint}")`: an
+     * interpolated key cannot be checked against the shipped config file, and an
+     * unverifiable read is how a package ends up reading a key it never ships (shops #18)
+     * or shipping one nothing reads (media #27's size cap that never applied). The match
+     * is exhaustive over the three masks routed through here, so an unknown endpoint throws
+     * instead of sending Google an empty `X-Goog-FieldMask` — which the API rejects anyway,
+     * one network round-trip later. (`field_masks.details` is read directly at its two call
+     * sites, which is why it is not a branch here.)
+     */
     private function mask(string $endpoint): string
     {
-        return (string) config("google-places.field_masks.{$endpoint}");
+        return (string) match ($endpoint) {
+            'autocomplete' => config('google-places.field_masks.autocomplete'),
+            'search' => config('google-places.field_masks.search'),
+            'routes' => config('google-places.field_masks.routes'),
+            default => throw new InvalidArgumentException("Unknown field mask endpoint [{$endpoint}]."),
+        };
     }
 
+    /**
+     * Literal keys, for the same reason as {@see self::mask()}. The three hosts mirror
+     * Google's three products; an unknown service used to fall through to `''`, which
+     * silently sent the request to the app's own origin.
+     */
     private function host(string $service): string
     {
-        $host = config("google-places.hosts.{$service}");
+        $host = match ($service) {
+            'places' => config('google-places.hosts.places'),
+            'routes' => config('google-places.hosts.routes'),
+            'geocoding' => config('google-places.hosts.geocoding'),
+            default => throw new InvalidArgumentException("Unknown Google service [{$service}]."),
+        };
 
         return is_string($host) ? rtrim($host, '/') : '';
     }
