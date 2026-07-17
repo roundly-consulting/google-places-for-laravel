@@ -23,8 +23,7 @@ ArchPresets::strictTypes('RoundlyConsulting\GooglePlaces');
  * model and no `*_model`-shaped config key, so there is no swap seam to pin. Verified
  * against `config/google-places.php`: every binding is a host, a field mask, or a limit.
  */
-ArchPresets::finalByDefault('RoundlyConsulting\GooglePlaces')
-    ->ignoring(PlacesException::class);
+ArchPresets::finalByDefault('RoundlyConsulting\GooglePlaces', [PlacesException::class]);
 
 /**
  * google-places does no cryptography — it is an HTTP client with an API key it never
