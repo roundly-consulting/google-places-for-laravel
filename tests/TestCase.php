@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\GooglePlaces\Tests;
 
-use Orchestra\Testbench\TestCase as Orchestra;
+use Illuminate\Support\ServiceProvider;
 use RoundlyConsulting\Geolocation\GeolocationServiceProvider;
 use RoundlyConsulting\GooglePlaces\GooglePlacesServiceProvider;
 use RoundlyConsulting\HttpClientRateLimits\HttpClientRateLimitsServiceProvider;
+use RoundlyConsulting\Testing\PackageTestCase;
 
-abstract class TestCase extends Orchestra
+abstract class TestCase extends PackageTestCase
 {
     /**
-     * @return array<int, class-string>
+     * Every provider google-places hard-requires, in registration order. A host
+     * auto-discovers these; the suite must list them or the test environment is a fiction.
+     *
+     * @return list<class-string<ServiceProvider>>
      */
-    protected function getPackageProviders($app): array
+    protected function packageProviders(): array
     {
         return [
             HttpClientRateLimitsServiceProvider::class,
@@ -23,9 +27,17 @@ abstract class TestCase extends Orchestra
         ];
     }
 
-    protected function defineEnvironment($app): void
+    /**
+     * No `migrationSources()`: google-places ships no migrations and opens no database
+     * connection — it is an HTTP client. That is also why it carries no pgsql leg.
+     *
+     * @return array<string, mixed>
+     */
+    protected function configBeforeBoot(): array
     {
-        $app['config']->set('google-places.key', 'GoogleApiKey');
-        $app['config']->set('google-places.http.retry_delay', 0);
+        return [
+            'google-places.key' => 'GoogleApiKey',
+            'google-places.http.retry_delay' => 0,
+        ];
     }
 }
