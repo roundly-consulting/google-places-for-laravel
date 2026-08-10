@@ -62,26 +62,33 @@ final class Places implements PlacesClient
     {
         $query = is_string($query) ? new DetailsQuery($query) : $query;
 
-        return $this->cached('details', $this->detailsKey($query), function () use ($query): ?Place {
-            $mask = $query->fieldMask() ?? (string) config('google-places.field_masks.details');
+        return $this->cached(
+            'details',
+            $this->detailsKey($query),
+            function () use ($query): ?array {
+                $mask = $query->fieldMask() ?? (string) config('google-places.field_masks.details');
 
-            $response = $this->send('details', fn (): Response => $this->placesClient($mask)
-                ->get('/places/'.$query->place, $query->toRequest()));
+                $response = $this->send('details', fn (): Response => $this->placesClient($mask)
+                    ->get('/places/'.$query->place, $query->toRequest()));
 
-            if ($response->successful()) {
-                $this->received('details', $response);
+                if ($response->successful()) {
+                    $this->received('details', $response);
 
-                return Place::fromResponse((array) $response->json());
-            }
+                    return (array) $response->json();
+                }
 
-            if ($response->status() === 404) {
-                $this->received('details', $response);
+                // A 404 is an ANSWER — "no such place" — and worth remembering. Every
+                // other failure throws, so a transient outage is never cached.
+                if ($response->status() === 404) {
+                    $this->received('details', $response);
 
-                return null;
-            }
+                    return null;
+                }
 
-            throw $this->failed('details', $response);
-        });
+                throw $this->failed('details', $response);
+            },
+            static fn (?array $payload): ?Place => $payload === null ? null : Place::fromResponse($payload),
+        );
     }
 
     public function autocomplete(AutocompleteQuery|string $query): Collection
@@ -111,50 +118,68 @@ final class Places implements PlacesClient
             default => new ReverseGeocodingQuery(new Location($location, (float) $longitude)),
         };
 
-        return $this->cached('geocode', $query->toRequest(), function () use ($query): Collection {
-            $response = $this->send('geocode', fn (): Response => $this->geocodingClient()
-                ->get('/geocode/json', $query->toRequest()));
+        return $this->cached(
+            'geocode',
+            $query->toRequest(),
+            function () use ($query): array {
+                $response = $this->send('geocode', fn (): Response => $this->geocodingClient()
+                    ->get('/geocode/json', $query->toRequest()));
 
-            if (in_array($response->json('status'), ['OK', 'ZERO_RESULTS'], true)) {
-                $this->received('geocode', $response);
+                if (in_array($response->json('status'), ['OK', 'ZERO_RESULTS'], true)) {
+                    $this->received('geocode', $response);
 
-                return $response->collect('results')
-                    ->map(static fn (array $item): ReverseGeocodingResult => ReverseGeocodingResult::fromResponse($item));
-            }
+                    return (array) $response->json();
+                }
 
-            throw $this->failed('geocode', $response);
-        });
+                throw $this->failed('geocode', $response);
+            },
+            static fn (?array $payload): Collection => self::geocodingResults($payload),
+        );
     }
 
     public function geocodeAddress(GeocodingQuery|string $query): Collection
     {
         $query = is_string($query) ? new GeocodingQuery($query) : $query;
 
-        return $this->cached('geocodeAddress', $query->toRequest(), function () use ($query): Collection {
-            $response = $this->send('geocodeAddress', fn (): Response => $this->geocodingClient()
-                ->get('/geocode/json', $query->toRequest()));
+        return $this->cached(
+            'geocodeAddress',
+            $query->toRequest(),
+            function () use ($query): array {
+                $response = $this->send('geocodeAddress', fn (): Response => $this->geocodingClient()
+                    ->get('/geocode/json', $query->toRequest()));
 
-            if (in_array($response->json('status'), ['OK', 'ZERO_RESULTS'], true)) {
-                $this->received('geocodeAddress', $response);
+                if (in_array($response->json('status'), ['OK', 'ZERO_RESULTS'], true)) {
+                    $this->received('geocodeAddress', $response);
 
-                return $response->collect('results')
-                    ->map(static fn (array $item): ReverseGeocodingResult => ReverseGeocodingResult::fromResponse($item));
-            }
+                    return (array) $response->json();
+                }
 
-            throw $this->failed('geocodeAddress', $response);
-        });
+                throw $this->failed('geocodeAddress', $response);
+            },
+            static fn (?array $payload): Collection => self::geocodingResults($payload),
+        );
     }
 
     public function textSearch(TextSearchQuery|string $query): Collection
     {
         $query = is_string($query) ? new TextSearchQuery($query) : $query;
 
-        return $this->cached('textSearch', $query->toBody(), fn (): Collection => $this->search('textSearch', '/places:searchText', $query->toBody()));
+        return $this->cached(
+            'textSearch',
+            $query->toBody(),
+            fn (): array => $this->search('textSearch', '/places:searchText', $query->toBody()),
+            static fn (?array $payload): Collection => self::places($payload),
+        );
     }
 
     public function nearbySearch(NearbySearchQuery $query): Collection
     {
-        return $this->cached('nearbySearch', $query->toBody(), fn (): Collection => $this->search('nearbySearch', '/places:searchNearby', $query->toBody()));
+        return $this->cached(
+            'nearbySearch',
+            $query->toBody(),
+            fn (): array => $this->search('nearbySearch', '/places:searchNearby', $query->toBody()),
+            static fn (?array $payload): Collection => self::places($payload),
+        );
     }
 
     public function textSearchPaginated(TextSearchQuery|string $query): SearchPaginator
@@ -183,29 +208,34 @@ final class Places implements PlacesClient
 
     public function computeMatrix(MatrixQuery $query): DistanceMatrix
     {
-        return $this->cached('computeMatrix', $query->toRoutesBody(), function () use ($query): DistanceMatrix {
-            $response = $this->send('computeMatrix', fn (): Response => $this->routesClient($this->mask('routes'))
-                ->post('/distanceMatrix/v2:computeRouteMatrix', $query->toRoutesBody()));
+        return $this->cached(
+            'computeMatrix',
+            $query->toRoutesBody(),
+            function () use ($query): array {
+                $response = $this->send('computeMatrix', fn (): Response => $this->routesClient($this->mask('routes'))
+                    ->post('/distanceMatrix/v2:computeRouteMatrix', $query->toRoutesBody()));
 
-            if (! $response->successful()) {
-                throw $this->failed('computeMatrix', $response);
-            }
+                if (! $response->successful()) {
+                    throw $this->failed('computeMatrix', $response);
+                }
 
-            $this->received('computeMatrix', $response);
+                $this->received('computeMatrix', $response);
 
-            $elements = $response->json();
+                $elements = $response->json();
 
-            if (! is_array($elements)) {
-                throw $this->failed('computeMatrix', $response);
-            }
+                if (! is_array($elements)) {
+                    throw $this->failed('computeMatrix', $response);
+                }
 
-            return DistanceMatrix::fromRoutesElements(
-                $elements,
+                return $elements;
+            },
+            fn (?array $elements): DistanceMatrix => DistanceMatrix::fromRoutesElements(
+                $elements ?? [],
                 count($query->origins),
                 count($query->destinations),
                 $query->type,
-            );
-        });
+            ),
+        );
     }
 
     public function findPlace(string $text, ?Location $bias = null): ?Place
@@ -221,45 +251,61 @@ final class Places implements PlacesClient
 
     public function distance(DistanceQuery $query): Distance|Roundtrip
     {
-        return $this->cached('distance', $query->toRoutesBody(), function () use ($query): Distance|Roundtrip {
-            $response = $this->send('distance', fn (): Response => $this->routesClient($this->mask('routes'))
-                ->post('/distanceMatrix/v2:computeRouteMatrix', $query->toRoutesBody()));
+        return $this->cached(
+            'distance',
+            $query->toRoutesBody(),
+            function () use ($query): array {
+                $response = $this->send('distance', fn (): Response => $this->routesClient($this->mask('routes'))
+                    ->post('/distanceMatrix/v2:computeRouteMatrix', $query->toRoutesBody()));
 
-            if (! $response->successful()) {
-                throw $this->failed('distance', $response);
-            }
-
-            $this->received('distance', $response);
-
-            $elements = $response->json();
-
-            if (! is_array($elements) || $elements === []) {
-                throw $this->failed('distance', $response);
-            }
-
-            $elements = $this->sortRouteElements($elements);
-
-            foreach ($elements as $index => $element) {
-                $condition = is_array($element) ? ($element['condition'] ?? null) : null;
-
-                if ($condition !== 'ROUTE_EXISTS') {
-                    throw PlacesException::routeNotFound(0, $index, is_string($condition) ? $condition : null);
+                if (! $response->successful()) {
+                    throw $this->failed('distance', $response);
                 }
-            }
 
-            if (count($elements) > 1) {
-                return Roundtrip::fromRoutesElements($elements, $query->type);
-            }
+                $this->received('distance', $response);
 
-            return Distance::fromRoutesElement((array) $elements[0], $query->type);
-        });
+                $elements = $response->json();
+
+                if (! is_array($elements) || $elements === []) {
+                    throw $this->failed('distance', $response);
+                }
+
+                return $elements;
+            },
+            function (?array $elements) use ($query): Distance|Roundtrip {
+                // Decoding, not fetching: a cached payload has to raise the same
+                // "no route" as a fresh one, or the answer would depend on whether
+                // somebody asked before.
+                if ($elements === null || $elements === []) {
+                    throw PlacesException::routeNotFound(0, 0, null);
+                }
+
+                $elements = $this->sortRouteElements($elements);
+
+                foreach ($elements as $index => $element) {
+                    $condition = is_array($element) ? ($element['condition'] ?? null) : null;
+
+                    if ($condition !== 'ROUTE_EXISTS') {
+                        throw PlacesException::routeNotFound(0, $index, is_string($condition) ? $condition : null);
+                    }
+                }
+
+                if (count($elements) > 1) {
+                    return Roundtrip::fromRoutesElements($elements, $query->type);
+                }
+
+                return Distance::fromRoutesElement((array) $elements[0], $query->type);
+            },
+        );
     }
 
     /**
+     * One search, as the API's raw payload — {@see places()} turns it into places.
+     *
      * @param  array<string, mixed>  $body
-     * @return Collection<int, Place>
+     * @return array<mixed>
      */
-    private function search(string $endpoint, string $uri, array $body): Collection
+    private function search(string $endpoint, string $uri, array $body): array
     {
         $response = $this->send($endpoint, fn (): Response => $this->placesClient($this->mask('search'))
             ->post($uri, $body));
@@ -270,8 +316,38 @@ final class Places implements PlacesClient
 
         $this->received($endpoint, $response);
 
-        return $response->collect('places')
+        return (array) $response->json();
+    }
+
+    /**
+     * The `places` of a search payload, as `Place` objects.
+     *
+     * @param  array<mixed>|null  $payload
+     * @return Collection<int, Place>
+     */
+    private static function places(?array $payload): Collection
+    {
+        $places = is_array($payload['places'] ?? null) ? $payload['places'] : [];
+
+        return Collection::make($places)
+            ->filter(static fn (mixed $item): bool => is_array($item))
             ->map(static fn (array $place): Place => Place::fromResponse($place))
+            ->values();
+    }
+
+    /**
+     * The `results` of a geocoding payload, as reverse-geocoding results.
+     *
+     * @param  array<mixed>|null  $payload
+     * @return Collection<int, ReverseGeocodingResult>
+     */
+    private static function geocodingResults(?array $payload): Collection
+    {
+        $results = is_array($payload['results'] ?? null) ? $payload['results'] : [];
+
+        return Collection::make($results)
+            ->filter(static fn (mixed $item): bool => is_array($item))
+            ->map(static fn (array $item): ReverseGeocodingResult => ReverseGeocodingResult::fromResponse($item))
             ->values();
     }
 
@@ -431,25 +507,56 @@ final class Places implements PlacesClient
     }
 
     /**
+     * Memoize one idempotent lookup — as the API's own PAYLOAD, never as the object
+     * built from it.
+     *
+     * A cache store is allowed to refuse to unserialize classes, and Laravel's is
+     * configured that way by default (`cache.serializable_classes`, which guards
+     * against gadget chains if `APP_KEY` leaks). Under that setting an object put
+     * into the cache comes back a `__PHP_Incomplete_Class`, so a method typed
+     * `?Place` returns something that fails every type check the moment it is
+     * touched — on the request that READS the entry, never on the one that wrote
+     * it. Caching the decoded JSON and rebuilding through the same factory the
+     * live path uses removes the possibility rather than documenting it.
+     *
+     * The payload is wrapped, because `null` is a real answer here: a 404 from
+     * `details` means "no such place", and `remember()` cannot tell that from a
+     * miss — so it re-billed Google for every repeat of a question already
+     * answered.
+     *
      * @template TValue
      *
-     * @param  array<string, mixed>  $params
-     * @param  Closure(): TValue  $resolve
+     * @param  array<string, mixed>  $params  what makes this lookup unique
+     * @param  Closure(): (array<mixed>|null)  $fetch  the raw, JSON-shaped payload
+     * @param  Closure(array<mixed>|null): TValue  $decode  payload → the returned type
      * @return TValue
      */
-    private function cached(string $endpoint, array $params, Closure $resolve): mixed
+    private function cached(string $endpoint, array $params, Closure $fetch, Closure $decode): mixed
     {
         if (! (bool) config('google-places.cache.enabled', false)) {
-            return $resolve();
+            return $decode($fetch());
         }
 
         $key = 'google-places:'.$endpoint.':'.sha1((string) json_encode($params));
+        $store = Cache::store($this->cacheStore());
+        $cached = $store->get($key);
 
-        return Cache::store($this->cacheStore())->remember(
-            $key,
-            (int) config('google-places.cache.ttl', 86400),
-            $resolve,
-        );
+        // Only this service's own wrapper counts as a hit. Anything else — a payload
+        // from an older version of this package, or an object a previous one stored —
+        // is a MISS, so an unreadable entry costs one lookup instead of throwing.
+        if (is_array($cached) && array_key_exists('payload', $cached)) {
+            $payload = $cached['payload'];
+
+            if ($payload === null || is_array($payload)) {
+                return $decode($payload);
+            }
+        }
+
+        $payload = $fetch();
+
+        $store->put($key, ['payload' => $payload], (int) config('google-places.cache.ttl', 86400));
+
+        return $decode($payload);
     }
 
     /**
