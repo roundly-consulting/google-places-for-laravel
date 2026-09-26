@@ -458,7 +458,8 @@ top-level `status`. `isDenied()` means the key, billing or the enabled APIs need
 invalid or expired key is denied even though Google files it under `INVALID_ARGUMENT` —
 `googleReason()` carries the `google.rpc.ErrorInfo` reason (`API_KEY_INVALID`,
 `API_KEY_SERVICE_BLOCKED`, `SERVICE_DISABLED`, …) that tells them apart; the legacy Geocoding
-API has none, so it is `null` there. `isInvalidRequest()` is never true for a key problem.
+API has none, so it is `null` there. `isInvalidRequest()` is never true for a key problem, and
+the client-side `RateLimitExceededException` answers `isRateLimited()` with `true`.
 
 A missing API key throws `PlacesException::missingApiKey()` before any HTTP request is made.
 

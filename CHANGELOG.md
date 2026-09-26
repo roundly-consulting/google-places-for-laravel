@@ -13,6 +13,7 @@ All notable changes to `google-places-for-laravel` will be documented in this fi
   denied too. The reason is exposed as `googleReason()`.
 - Routes API errors arrive array-wrapped (`[{"error": {…}}]`); their status and message were
   read as `null`, so a Routes quota or key failure had no classification at all.
+- The client-side `RateLimitExceededException` answered `isRateLimited()` with `false`.
 
 ### Added
 

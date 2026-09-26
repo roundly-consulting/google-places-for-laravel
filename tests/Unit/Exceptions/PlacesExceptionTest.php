@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+use RoundlyConsulting\GooglePlaces\Exceptions\RateLimitExceededException;
 
 function httpResponse(array|string $body, int $status = 200): Response
 {
@@ -64,4 +65,11 @@ it('builds validation exceptions', function () {
         ->and(PlacesException::tooManyRegionCodes()->getMessage())->toContain('15')
         ->and(PlacesException::invalidRadius(0, 50000)->getMessage())->toContain('50000')
         ->and(PlacesException::routeNotFound(0, 1, null)->getMessage())->toContain('UNKNOWN');
+});
+
+it('answers isRateLimited() on the package own rate-limit exception', function () {
+    // The README branches `if ($e->isRateLimited()) { back off }` on any PlacesException;
+    // the client-side limiter's exception is the one that most needs to say yes.
+    expect(RateLimitExceededException::for('places', 5)->isRateLimited())->toBeTrue()
+        ->and(RateLimitExceededException::for('places', 5)->isDenied())->toBeFalse();
 });

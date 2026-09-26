@@ -34,4 +34,15 @@ final class RateLimitExceededException extends PlacesException implements HasRet
 
         return $exception->withRetryAfter($retryAfterSeconds);
     }
+
+    /**
+     * Always — this IS the rate limit. It carries no Google status (the call never left),
+     * so the inherited status check answered `false`, and a caller following the
+     * documented `isRateLimited()` branch did not back off from the one exception that
+     * asks it to.
+     */
+    public function isRateLimited(): bool
+    {
+        return true;
+    }
 }
