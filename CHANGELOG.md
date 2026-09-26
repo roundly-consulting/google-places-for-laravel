@@ -14,6 +14,8 @@ All notable changes to `google-places-for-laravel` will be documented in this fi
 - Routes API errors arrive array-wrapped (`[{"error": {…}}]`); their status and message were
   read as `null`, so a Routes quota or key failure had no classification at all.
 - The client-side `RateLimitExceededException` answered `isRateLimited()` with `false`.
+- `google-places:check` reported the Geocoding API as authorized when Google answered HTTP 200
+  with `REQUEST_DENIED` (an invalid key), and dropped the status of a Routes error.
 
 ### Added
 

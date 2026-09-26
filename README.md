@@ -508,7 +508,8 @@ $request->validate([
 ### Preflight check command
 
 Verify the configured key and that each API is enabled/reachable (the key is redacted in
-the output):
+the output). A Geocoding answer of `REQUEST_DENIED` fails the check even though Google sends it
+with HTTP 200:
 
 ```bash
 php artisan google-places:check

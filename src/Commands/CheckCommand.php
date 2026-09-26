@@ -11,6 +11,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ApiCheckResult;
+use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
 
 /**
  * Preflight doctor: pings each configured Google API with the configured key
@@ -73,14 +74,17 @@ final class CheckCommand extends Command
             return new ApiCheckResult($api, false, 'Unreachable: '.$exception->getMessage());
         }
 
-        if ($response->successful()) {
+        // The legacy Geocoding API answers a refused key with HTTP 200 and a body `status`
+        // of REQUEST_DENIED (recorded live), so an HTTP success alone is not "authorized".
+        $status = PlacesException::statusFrom($response);
+
+        if ($response->successful() && in_array($status, [null, 'OK', 'ZERO_RESULTS'], true)) {
             return new ApiCheckResult($api, true, 'Reachable and authorized.');
         }
 
-        $status = $response->json('error.status') ?? $response->json('status');
-        $message = $response->json('error.message') ?? $response->json('error_message');
+        $message = PlacesException::fromResponse($response)->googleErrorMessage();
 
-        $detail = trim(($response->status().' '.(is_string($status) ? $status : '')).' '.(is_string($message) ? $message : ''));
+        $detail = trim(($response->status().' '.($status ?? '')).' '.($message ?? ''));
 
         return new ApiCheckResult($api, false, $this->redactKey($detail !== '' ? $detail : 'Request rejected.'));
     }
