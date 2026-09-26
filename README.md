@@ -448,9 +448,17 @@ try {
     elseif ($e->isDenied())       { /* check key / billing / enabled APIs */ }
     elseif ($e->isInvalidRequest()) { /* fix the request */ }
 
-    report($e); // $e->googleStatus(), $e->googleErrorMessage()
+    report($e); // $e->googleStatus(), $e->googleReason(), $e->googleErrorMessage()
 }
 ```
+
+The classification reads every error shape the package talks to — Places API (New)
+`{"error": {…}}`, the Routes API's array-wrapped `[{"error": {…}}]`, and the Geocoding API's
+top-level `status`. `isDenied()` means the key, billing or the enabled APIs need attention: an
+invalid or expired key is denied even though Google files it under `INVALID_ARGUMENT` —
+`googleReason()` carries the `google.rpc.ErrorInfo` reason (`API_KEY_INVALID`,
+`API_KEY_SERVICE_BLOCKED`, `SERVICE_DISABLED`, …) that tells them apart; the legacy Geocoding
+API has none, so it is `null` there. `isInvalidRequest()` is never true for a key problem.
 
 A missing API key throws `PlacesException::missingApiKey()` before any HTTP request is made.
 

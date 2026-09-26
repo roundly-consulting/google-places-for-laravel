@@ -4,6 +4,16 @@ All notable changes to `google-places-for-laravel` will be documented in this fi
 
 ## Unreleased
 
+### Fixed
+
+- An invalid or expired key on Places API (New) and the Routes API (`INVALID_ARGUMENT` with an
+  `API_KEY_INVALID` / `API_KEY_EXPIRED` reason) is now `isDenied()`, not `isInvalidRequest()`;
+  every key/project `google.rpc.ErrorInfo` reason (`API_KEY_SERVICE_BLOCKED`, `SERVICE_DISABLED`,
+  `BILLING_DISABLED`, …) and the `UNAUTHENTICATED` / legacy `OVER_DAILY_LIMIT` statuses count as
+  denied too. The reason is exposed as `googleReason()`.
+- Routes API errors arrive array-wrapped (`[{"error": {…}}]`); their status and message were
+  read as `null`, so a Routes quota or key failure had no classification at all.
+
 ### Added
 
 - `PlacesClient` contract bound as a singleton; the facade resolves it.
