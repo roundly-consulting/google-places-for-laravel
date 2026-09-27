@@ -1,45 +1,32 @@
 # Changelog
 
-All notable changes to `google-places-for-laravel` will be documented in this file.
+All notable changes to `google-places-for-laravel` are documented in this file. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Fixed
-
-- An invalid or expired key on Places API (New) and the Routes API (`INVALID_ARGUMENT` with an
-  `API_KEY_INVALID` / `API_KEY_EXPIRED` reason) is now `isDenied()`, not `isInvalidRequest()`;
-  every key/project `google.rpc.ErrorInfo` reason (`API_KEY_SERVICE_BLOCKED`, `SERVICE_DISABLED`,
-  `BILLING_DISABLED`, …) and the `UNAUTHENTICATED` / legacy `OVER_DAILY_LIMIT` statuses count as
-  denied too. The reason is exposed as `googleReason()`.
-- Routes API errors arrive array-wrapped (`[{"error": {…}}]`); their status and message were
-  read as `null`, so a Routes quota or key failure had no classification at all.
-- The client-side `RateLimitExceededException` answered `isRateLimited()` with `false`.
-- `google-places:check` reported the Geocoding API as authorized when Google answered HTTP 200
-  with `REQUEST_DENIED` (an invalid key), and dropped the status of a Routes error.
+Initial public release.
 
 ### Added
 
-- `PlacesClient` contract bound as a singleton; the facade resolves it.
-- `GooglePlaces::fake()` + `FakePlacesClient` with queue/record/assert helpers.
-- Config-driven HTTP resilience (timeout, connect-timeout, retries) and an early
-  missing-API-key guard.
-- Optional native response caching (opt-in; details/geocode/distance/search). The API key
-  never appears in a cache key.
-- Richer `PlacesException` with `googleStatus()`/`googleErrorMessage()` and
-  `isRateLimited()`/`isDenied()`/`isInvalidRequest()` across the Places, Routes, and Geocoding
-  error shapes.
-- `TravelMode` enum (driving/walking/bicycling/transit) and immutable, fluent query DTOs.
-- Scalar facade shortcuts (`autocomplete('Coffee')`, `details($id)`, `geocode($lat, $lng)`).
-- New endpoints: text search, nearby search, find place, place photos, plus place details and
-  autocomplete on the new API.
-- Lifecycle events `PlacesResponseReceived` and `PlacesRequestFailed` (never carry the API key).
-
-### Changed
-
-- **Targets Google's Places API (New), Routes API, and Geocoding API** — header authentication
-  (`X-Goog-Api-Key`), required field masks, and JSON request bodies. The legacy
-  `maps.googleapis.com/maps/api` Places web service is no longer used.
-- Distance/ETA now uses the Routes API `computeRouteMatrix`; human-readable distance/duration
-  strings are formatted by the package (the Routes API does not return them).
-- `Distance`/`Roundtrip`/`DistanceQuery` expose `TravelMode` instead of a raw string.
-- Fixed the `DetailsQuery` default field bug — details now request `types` and `photos`.
+- A typed client for Google's Places API (New), Routes API and Geocoding API, available as the
+  `GooglePlaces` facade or the `PlacesClient` contract, built on Laravel's HTTP client.
+- Place autocomplete with billing sessions (`GooglePlaces::session()`), and place details with
+  per-request field masks.
+- Text search, nearby search and find place, with auto-pagination (`all()`, `cursor()`) and
+  location-bias helpers (`nearby()`, `withinBounds()`).
+- Reverse and forward geocoding (`geocode()`, `geocodeAddress()`) with typed address components
+  such as `street()`, `city()`, `postalCode()` and `countryCode()`.
+- Distance and travel time through the Routes API (`distance()`, including round trips) and a full
+  origins × destinations matrix (`GooglePlaces::matrix()`).
+- Photo URLs and photo bytes (`GooglePlaces::photo()`), with the API key sent as a header and never
+  exposed.
+- A `PlacesException` with typed accessors (`isDenied()`, `isRateLimited()`, `googleReason()`, …);
+  the API key never appears in messages, events, logs or cache keys.
+- Optional response caching, opt-in request logging and lifecycle events
+  (`PlacesResponseReceived`, `PlacesRequestFailed`).
+- `ValidPlaceId` and `ValidCoordinates` validation rules, and the `google-places:check` command to
+  verify your key and enabled APIs.
+- A `google_places` driver for geolocation-for-laravel, and per-API client-side rate limiting.
+- `GooglePlaces::fake()` for testing without real HTTP.
