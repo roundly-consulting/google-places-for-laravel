@@ -8,7 +8,7 @@ use RoundlyConsulting\Testing\Arch\ArchPresets;
 /**
  * The presets replace a single hand-written `dd`/`dump`/`ray` rule. That rule was worse
  * than it looked: Pest's arch layer only sees a dependency whose symbol *exists*, and
- * `acme/ray` is not in the graph by policy — so `ray` was filtered out before the ban
+ * the `ray()` debugger package is not in the graph by policy — so `ray` was filtered out before the ban
  * ran and could never fail. `noDebuggingLeftovers` reads source tokens instead, which
  * don't care whether the function exists.
  */
