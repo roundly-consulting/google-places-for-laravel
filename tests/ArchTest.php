@@ -48,3 +48,10 @@ ArchPresets::noLocalCryptoPrimitives('RoundlyConsulting\GooglePlaces');
 ArchPresets::runtimeRequireIsWhitelisted(__DIR__.'/../composer.json');
 
 ArchPresets::noDebuggingLeftovers();
+
+/**
+ * google-places has no Models or Traits, but its `Concerns` namespace holds the
+ * rate-limit trait — so the preset applies and pins that no concern reaches for
+ * an action (it has none today; the pin keeps it that way).
+ */
+ArchPresets::modelsGoThroughTheFacade('RoundlyConsulting\GooglePlaces');

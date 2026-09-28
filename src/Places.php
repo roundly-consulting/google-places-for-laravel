@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use RoundlyConsulting\GooglePlaces\Concerns\InteractsWithRateLimits;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\ApiCheckResult;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompleteQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DetailsQuery;
@@ -35,17 +36,72 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+use RoundlyConsulting\GooglePlaces\Support\PendingMatrix;
+use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
+use RoundlyConsulting\GooglePlaces\Support\PlacesSession;
 use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
 
 final class Places implements PlacesClient
 {
     use InteractsWithRateLimits;
 
+    /**
+     * The waypoint the Routes probe asks about: (0, 0) — any answer proves the API is on.
+     */
+    private const array NULL_ISLAND = ['waypoint' => ['location' => ['latLng' => ['latitude' => 0, 'longitude' => 0]]]];
+
     private float $startedAt = 0.0;
 
     public function __construct(
         private readonly Dispatcher $events,
     ) {}
+
+    public function session(?string $token = null): PlacesSession
+    {
+        return new PlacesSession($this, $token);
+    }
+
+    public function matrix(array $origins, array $destinations): PendingMatrix
+    {
+        return new PendingMatrix($this, $origins, $destinations);
+    }
+
+    public function photo(string $name, int $maxWidth = 1600, int $maxHeight = 1600): PendingPhoto
+    {
+        return new PendingPhoto($this, $name, $maxWidth, $maxHeight);
+    }
+
+    public function photoUri(string $name, int $maxWidth = 1600, int $maxHeight = 1600): string
+    {
+        $uri = $this->media('photoUri', $name, $maxWidth, $maxHeight, ['skipHttpRedirect' => 'true'])->json('photoUri');
+
+        return is_string($uri) ? $uri : '';
+    }
+
+    public function photoContents(string $name, int $maxWidth = 1600, int $maxHeight = 1600): string
+    {
+        return $this->media('photoContents', $name, $maxWidth, $maxHeight)->body();
+    }
+
+    public function check(): array
+    {
+        $key = $this->key();
+
+        return [
+            $this->probe('Places API (New)', $key, fn (): Response => $this->probeClient('places')
+                ->withHeaders(['X-Goog-Api-Key' => $key, 'X-Goog-FieldMask' => 'places.id'])
+                ->post('/places:searchText', ['textQuery' => 'test'])),
+            $this->probe('Routes API', $key, fn (): Response => $this->probeClient('routes')
+                ->withHeaders(['X-Goog-Api-Key' => $key, 'X-Goog-FieldMask' => 'originIndex,destinationIndex,condition'])
+                ->post('/distanceMatrix/v2:computeRouteMatrix', [
+                    'origins' => [self::NULL_ISLAND],
+                    'destinations' => [self::NULL_ISLAND],
+                    'travelMode' => 'DRIVE',
+                ])),
+            $this->probe('Geocoding API', $key, fn (): Response => $this->probeClient('geocoding')
+                ->get('/geocode/json', ['address' => 'Googleplex', 'key' => $key])),
+        ];
+    }
 
     public function photoUrl(string $name, int $maxWidth = 1600, int $maxHeight = 1600): string
     {
@@ -297,6 +353,79 @@ final class Places implements PlacesClient
                 return Distance::fromRoutesElement((array) $elements[0], $query->type);
             },
         );
+    }
+
+    /**
+     * One request to a photo's `/media` endpoint, throttled and reported on the
+     * `places` surface like every other Places call. The key travels as a header,
+     * never in the URL.
+     *
+     * @param  array<string, string>  $extra
+     */
+    private function media(string $endpoint, string $name, int $maxWidth, int $maxHeight, array $extra = []): Response
+    {
+        $response = $this->send($endpoint, fn (): Response => $this->baseClient($this->host('places'))
+            ->withHeaders(['X-Goog-Api-Key' => $this->key()])
+            ->get('/'.ltrim($name, '/').'/media', array_merge([
+                'maxWidthPx' => (string) $maxWidth,
+                'maxHeightPx' => (string) $maxHeight,
+            ], $extra)));
+
+        if (! $response->successful()) {
+            throw $this->failed($endpoint, $response);
+        }
+
+        $this->received($endpoint, $response);
+
+        return $response;
+    }
+
+    /**
+     * Run one health probe. A probe never throws: an unreachable or refusing API
+     * is the answer it exists to report.
+     *
+     * @param  Closure(): Response  $request
+     */
+    private function probe(string $api, string $key, Closure $request): ApiCheckResult
+    {
+        try {
+            $response = $request();
+        } catch (ConnectionException $exception) {
+            return new ApiCheckResult($api, false, self::redact('Unreachable: '.$exception->getMessage(), $key));
+        }
+
+        // The legacy Geocoding API answers a refused key with HTTP 200 and a body `status`
+        // of REQUEST_DENIED (recorded live), so an HTTP success alone is not "authorized".
+        $status = PlacesException::statusFrom($response);
+
+        if ($response->successful() && in_array($status, [null, 'OK', 'ZERO_RESULTS'], true)) {
+            return new ApiCheckResult($api, true, 'Reachable and authorized.');
+        }
+
+        $message = PlacesException::fromResponse($response)->googleErrorMessage();
+
+        $detail = trim(($response->status().' '.($status ?? '')).' '.($message ?? ''));
+
+        return new ApiCheckResult($api, false, self::redact($detail !== '' ? $detail : 'Request rejected.', $key));
+    }
+
+    /**
+     * A probe client: no retries (a doctor reports the first failure rather than
+     * papering over it), no throttling, no events.
+     */
+    private function probeClient(string $service): PendingRequest
+    {
+        return Http::baseUrl($this->host($service))
+            ->timeout((int) config('google-places.http.timeout', 10))
+            ->connectTimeout((int) config('google-places.http.connect_timeout', 5));
+    }
+
+    /**
+     * Mask every occurrence of the key, keeping its last four characters.
+     */
+    private static function redact(string $text, string $key): string
+    {
+        return str_replace($key, str_repeat('*', max(0, strlen($key) - 4)).substr($key, -4), $text);
     }
 
     /**

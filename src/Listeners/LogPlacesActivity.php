@@ -12,6 +12,9 @@ use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 /**
  * Opt-in request logger wired to the package's lifecycle events. The API key is
  * never present on either event, so nothing sensitive is ever written.
+ *
+ * @internal Wiring: the service provider subscribes it; toggle it with
+ *           `google-places.logging.enabled`.
  */
 final class LogPlacesActivity
 {

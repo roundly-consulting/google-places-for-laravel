@@ -19,6 +19,9 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
  * address queries forward-geocode via geocodeAddress(). Google Places has no IP
  * geolocation, so IP-only (or empty) queries resolve to null and fall through to
  * the next provider in the host's pipeline.
+ *
+ * @internal Wiring: registered by the service provider as the `google_places`
+ *           geolocation driver. Use it through geolocation-for-laravel.
  */
 final class GooglePlacesProvider implements GeolocationProvider
 {

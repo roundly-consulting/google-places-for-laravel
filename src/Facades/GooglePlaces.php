@@ -7,6 +7,7 @@ namespace RoundlyConsulting\GooglePlaces\Facades;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Facade;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\ApiCheckResult;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompleteQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DetailsQuery;
@@ -26,10 +27,16 @@ use RoundlyConsulting\GooglePlaces\Support\PendingMatrix;
 use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
 use RoundlyConsulting\GooglePlaces\Support\PlacesSession;
 use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
-use RoundlyConsulting\GooglePlaces\Testing\FakePlacesClient;
+use RoundlyConsulting\GooglePlaces\Testing\GooglePlacesFake;
 
 /**
+ * @method static PlacesSession session(?string $token = null)
+ * @method static PendingMatrix matrix(list<Location> $origins, list<Location> $destinations)
+ * @method static PendingPhoto photo(string $name, int $maxWidth = 1600, int $maxHeight = 1600)
  * @method static string photoUrl(string $name, int $maxWidth = 1600, int $maxHeight = 1600)
+ * @method static string photoUri(string $name, int $maxWidth = 1600, int $maxHeight = 1600)
+ * @method static string photoContents(string $name, int $maxWidth = 1600, int $maxHeight = 1600)
+ * @method static list<ApiCheckResult> check()
  * @method static ?Place details(DetailsQuery|string $query)
  * @method static Collection<int, AutocompletePrediction> autocomplete(AutocompleteQuery|string $query)
  * @method static Collection<int, ReverseGeocodingResult> geocode(ReverseGeocodingQuery|Location|float $location, ?float $longitude = null)
@@ -46,51 +53,22 @@ use RoundlyConsulting\GooglePlaces\Testing\FakePlacesClient;
  */
 final class GooglePlaces extends Facade
 {
-    public static function fake(): FakePlacesClient
+    /**
+     * Swap a recording fake in behind the facade and the {@see PlacesClient}
+     * binding, so injected clients, handles (session, matrix, photo) and the
+     * `google-places:check` command all hit it instead of Google.
+     */
+    public static function fake(): GooglePlacesFake
     {
-        $fake = new FakePlacesClient;
+        $fake = new GooglePlacesFake;
 
         self::swap($fake);
 
         return $fake;
     }
 
-    /**
-     * Start a billing session that ties an autocomplete burst plus its final
-     * details() call together under one session token.
-     */
-    public static function session(?string $token = null): PlacesSession
-    {
-        return new PlacesSession(self::client(), $token);
-    }
-
-    /**
-     * Begin a many-origins × many-destinations distance matrix.
-     *
-     * @param  list<Location>  $origins
-     * @param  list<Location>  $destinations
-     */
-    public static function matrix(array $origins, array $destinations): PendingMatrix
-    {
-        return new PendingMatrix(self::client(), $origins, $destinations);
-    }
-
-    /**
-     * Fetch the bytes/URL behind a place photo resource name.
-     */
-    public static function photo(string $name, int $maxWidth = 1600, int $maxHeight = 1600): PendingPhoto
-    {
-        return new PendingPhoto($name, $maxWidth, $maxHeight);
-    }
-
     protected static function getFacadeAccessor(): string
     {
         return PlacesClient::class;
-    }
-
-    private static function client(): PlacesClient
-    {
-        // Resolve through the container so a GooglePlaces::fake() swap is honoured.
-        return app(PlacesClient::class);
     }
 }

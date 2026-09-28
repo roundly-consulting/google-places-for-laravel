@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\Assert;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\ApiCheckResult;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompletePrediction;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\AutocompleteQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DetailsQuery;
@@ -18,6 +19,7 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\PhotoQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
@@ -25,9 +27,17 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\SearchPage;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
+use RoundlyConsulting\GooglePlaces\Support\PendingMatrix;
+use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
+use RoundlyConsulting\GooglePlaces\Support\PlacesSession;
 use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
 
-final class FakePlacesClient implements PlacesClient
+/**
+ * The recording stand-in `GooglePlaces::fake()` installs behind the facade and
+ * the {@see PlacesClient} binding. Nothing reaches Google: every call is
+ * recorded and answered from what the `with*()` seeders queued.
+ */
+final class GooglePlacesFake implements PlacesClient
 {
     /** @var list<AutocompletePrediction> */
     private array $autocompleteReturn = [];
@@ -53,6 +63,13 @@ final class FakePlacesClient implements PlacesClient
     private Distance|Roundtrip|null $distanceReturn = null;
 
     private ?string $photoUrlReturn = null;
+
+    private string $photoReturn = '';
+
+    private ?string $photoUriReturn = null;
+
+    /** @var list<ApiCheckResult>|null */
+    private ?array $checkReturn = null;
 
     /** @var list<AutocompleteQuery> */
     private array $autocompleteCalls = [];
@@ -80,6 +97,11 @@ final class FakePlacesClient implements PlacesClient
 
     /** @var list<DistanceQuery> */
     private array $distanceCalls = [];
+
+    /** @var list<PhotoQuery> */
+    private array $photoCalls = [];
+
+    private int $checkCalls = 0;
 
     /**
      * @param  list<AutocompletePrediction>  $predictions
@@ -164,6 +186,69 @@ final class FakePlacesClient implements PlacesClient
         $this->photoUrlReturn = $url;
 
         return $this;
+    }
+
+    /**
+     * Queue the bytes every photo returns — and, optionally, its key-free URL.
+     */
+    public function withPhoto(string $bytes, ?string $uri = null): self
+    {
+        $this->photoReturn = $bytes;
+        $this->photoUriReturn = $uri;
+
+        return $this;
+    }
+
+    /**
+     * Queue what check() reports. Unseeded, every API reports healthy.
+     *
+     * @param  list<ApiCheckResult>  $results
+     */
+    public function withCheck(array $results): self
+    {
+        $this->checkReturn = $results;
+
+        return $this;
+    }
+
+    public function session(?string $token = null): PlacesSession
+    {
+        return new PlacesSession($this, $token);
+    }
+
+    public function matrix(array $origins, array $destinations): PendingMatrix
+    {
+        return new PendingMatrix($this, $origins, $destinations);
+    }
+
+    public function photo(string $name, int $maxWidth = 1600, int $maxHeight = 1600): PendingPhoto
+    {
+        return new PendingPhoto($this, $name, $maxWidth, $maxHeight);
+    }
+
+    public function photoUri(string $name, int $maxWidth = 1600, int $maxHeight = 1600): string
+    {
+        $this->photoCalls[] = new PhotoQuery($name, $maxWidth, $maxHeight, contents: false);
+
+        return $this->photoUriReturn ?? 'https://lh3.googleusercontent.com/fake/'.ltrim($name, '/');
+    }
+
+    public function photoContents(string $name, int $maxWidth = 1600, int $maxHeight = 1600): string
+    {
+        $this->photoCalls[] = new PhotoQuery($name, $maxWidth, $maxHeight);
+
+        return $this->photoReturn;
+    }
+
+    public function check(): array
+    {
+        $this->checkCalls++;
+
+        return $this->checkReturn ?? [
+            new ApiCheckResult('Places API (New)', true, 'Reachable and authorized.'),
+            new ApiCheckResult('Routes API', true, 'Reachable and authorized.'),
+            new ApiCheckResult('Geocoding API', true, 'Reachable and authorized.'),
+        ];
     }
 
     public function photoUrl(string $name, int $maxWidth = 1600, int $maxHeight = 1600): string
@@ -334,6 +419,29 @@ final class FakePlacesClient implements PlacesClient
         $this->assertCalled('distance', $this->distanceCalls, $callback);
     }
 
+    /**
+     * A photo's bytes or key-free URL was requested — by resource name, or matching the callback.
+     *
+     * @param  (Closure(PhotoQuery): bool)|string|null  $callback
+     */
+    public function assertPhotoRequested(Closure|string|null $callback = null): void
+    {
+        if (is_string($callback)) {
+            $name = $callback;
+            $callback = static fn (PhotoQuery $query): bool => $query->name === $name;
+        }
+
+        $this->assertCalled('photo', $this->photoCalls, $callback);
+    }
+
+    /**
+     * check() ran — directly, or through `php artisan google-places:check`.
+     */
+    public function assertChecked(): void
+    {
+        Assert::assertGreaterThan(0, $this->checkCalls, 'Expected a check call, but none were made.');
+    }
+
     public function assertNothingAutocompleted(): void
     {
         Assert::assertCount(0, $this->autocompleteCalls, 'Expected no autocomplete calls.');
@@ -356,7 +464,9 @@ final class FakePlacesClient implements PlacesClient
                 + count($this->textSearchCalls)
                 + count($this->nearbySearchCalls)
                 + count($this->findPlaceCalls)
-                + count($this->distanceCalls),
+                + count($this->distanceCalls)
+                + count($this->photoCalls)
+                + $this->checkCalls,
             'Expected no Google Places calls.',
         );
     }

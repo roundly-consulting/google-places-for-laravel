@@ -12,7 +12,7 @@ use RoundlyConsulting\Geolocation\Exceptions\UnknownProviderException;
 use RoundlyConsulting\Geolocation\Facades\Geolocation;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
-use RoundlyConsulting\GooglePlaces\Testing\FakePlacesClient;
+use RoundlyConsulting\GooglePlaces\Testing\GooglePlacesFake;
 
 function geocodingResult(): ReverseGeocodingResult
 {
@@ -38,9 +38,9 @@ function geocodingResult(): ReverseGeocodingResult
     ]);
 }
 
-function fakePlaces(): FakePlacesClient
+function fakePlaces(): GooglePlacesFake
 {
-    $fake = new FakePlacesClient;
+    $fake = new GooglePlacesFake;
     app()->instance(PlacesClient::class, $fake);
 
     return $fake;

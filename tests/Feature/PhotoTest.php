@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
+use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
 use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
 use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
@@ -86,3 +89,24 @@ it('throws when the media endpoint is unreachable', function () {
 
     GooglePlaces::photo('places/p1/photos/x')->contents();
 })->throws(PlacesException::class);
+
+it('reports photo requests through the client lifecycle events', function () {
+    fakePhotoEndpoint();
+    Event::fake([PlacesResponseReceived::class, PlacesRequestFailed::class]);
+
+    GooglePlaces::photo('places/p1/photos/abc')->contents();
+    GooglePlaces::photo('places/p1/photos/abc')->url();
+
+    Event::assertDispatched(PlacesResponseReceived::class, fn (PlacesResponseReceived $event): bool => $event->endpoint === 'photoContents');
+    Event::assertDispatched(PlacesResponseReceived::class, fn (PlacesResponseReceived $event): bool => $event->endpoint === 'photoUri');
+});
+
+it('reports a failed photo request', function () {
+    Http::fake(['places.googleapis.com/v1/*' => Http::response(['error' => ['status' => 'NOT_FOUND']], 404)]);
+    Event::fake([PlacesRequestFailed::class]);
+
+    expect(fn () => GooglePlaces::photoContents('places/p1/photos/missing'))->toThrow(PlacesException::class);
+
+    Event::assertDispatched(PlacesRequestFailed::class, fn (PlacesRequestFailed $event): bool => $event->endpoint === 'photoContents'
+        && $event->httpStatus === 404);
+});
