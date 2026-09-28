@@ -9,6 +9,7 @@ use Illuminate\Http\Client\Response;
 use RoundlyConsulting\GooglePlaces\Exceptions\RateLimitExceededException as PlacesRateLimitExceededException;
 use RoundlyConsulting\HttpClientRateLimits\Enums\Timespan;
 use RoundlyConsulting\HttpClientRateLimits\Exceptions\RateLimitExceededException;
+use RoundlyConsulting\HttpClientRateLimits\Facades\RateLimits;
 use RoundlyConsulting\HttpClientRateLimits\Limit;
 use RoundlyConsulting\HttpClientRateLimits\RateLimit;
 
@@ -44,7 +45,7 @@ trait InteractsWithRateLimits
         $timespan = Timespan::tryFrom((string) ($config['per'] ?? 'minute')) ?? Timespan::Minute;
         $owner = (string) config('google-places.rate_limits.owner', 'app');
 
-        $rateLimit = RateLimit::make(new Limit(
+        $rateLimit = RateLimits::make(new Limit(
             maxAttempts: (int) ($config['limit'] ?? 600),
             timespan: $timespan,
         ))->by("google-places:{$surface}:{$owner}");
