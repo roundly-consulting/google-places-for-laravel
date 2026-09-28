@@ -30,3 +30,23 @@ Initial public release.
   verify your key and enabled APIs.
 - A `google_places` driver for geolocation-for-laravel, and per-API client-side rate limiting.
 - `GooglePlaces::fake()` for testing without real HTTP.
+- `GooglePlaces::check()` returns one `ApiCheckResult` per Google API (Places, Routes, Geocoding)
+  for health endpoints and deploy gates; `google-places:check` is a thin wrapper over it. The key
+  is redacted from every detail, including connection errors.
+- `GooglePlaces::photoUri()` and `GooglePlaces::photoContents()` — the key-free photo URL and the
+  photo bytes, straight from the client.
+- Fake: `withPhoto(string $bytes, ?string $uri = null)`, `withCheck(list<ApiCheckResult>)`,
+  `assertPhotoRequested(name|Closure(PhotoQuery))` and `assertChecked()`.
+
+### Changed
+
+- Photo requests (`photo()->url()/contents()/save()`) go through the `PlacesClient`: they are
+  throttled on the `places` budget, emit `PlacesResponseReceived`/`PlacesRequestFailed`
+  (endpoints `photoUri`/`photoContents`) and are recorded by `GooglePlaces::fake()` instead of
+  reaching Google.
+- `session()`, `matrix()` and `photo()` moved from facade statics onto the `PlacesClient` contract,
+  so injected clients have them too; the contract also gains `photoUri()`, `photoContents()` and
+  `check()`. Facade calls are unchanged.
+- The fake class is renamed `Testing\FakePlacesClient` → `Testing\GooglePlacesFake`.
+- Outbound rate limits are built through the `RateLimits` facade of
+  http-client-rate-limits-for-laravel.

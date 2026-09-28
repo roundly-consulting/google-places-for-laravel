@@ -114,15 +114,53 @@ The package works with zero extra configuration once the key is set. Every value
 
 ## Usage
 
-Resolve the client from the container (`PlacesClient` contract) or use the `GooglePlaces`
-facade. Both point at the same singleton.
+Everything goes through the `GooglePlaces` facade:
+
+```php
+use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
+
+$place = GooglePlaces::details('ChIJN1t_tDeuEmsRUsoyG83frY4');
+$bytes = GooglePlaces::photo($place->photos[0])->contents();
+```
+
+### Without the facade
+
+The facade is sugar over the `PlacesClient` contract — inject it and call the same methods.
+Both resolve the same singleton, and `GooglePlaces::fake()` replaces both.
 
 ```php
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
-use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
 
-$places = app(PlacesClient::class); // or use the GooglePlaces facade
+final class NearbyCafes
+{
+    public function __construct(private PlacesClient $places) {}
+
+    public function __invoke(string $query): array
+    {
+        return $this->places->textSearch($query)->all();
+    }
+}
 ```
+
+google-places is a remote-API client, so it has no action classes: the contract's methods are
+the use cases.
+
+| Method | Returns |
+|---|---|
+| `details($query)` | `?Place` |
+| `autocomplete($query)` | `Collection<AutocompletePrediction>` |
+| `session(?$token)` | `PlacesSession` (`autocomplete()`, `details()`, `token()`) |
+| `textSearch($query)`, `nearbySearch($query)` | `Collection<Place>` |
+| `textSearchPaginated($query)`, `nearbySearchPaginated($query)` | `SearchPaginator` |
+| `findPlace($text, ?$bias)` | `?Place` |
+| `geocode($location, ?$lng)`, `geocodeAddress($query)` | `Collection<ReverseGeocodingResult>` |
+| `distance(DistanceQuery)` | `Distance\|Roundtrip` |
+| `matrix($origins, $destinations)` | `PendingMatrix` (`driving()`, `walking()`, …) |
+| `computeMatrix(MatrixQuery)` | `DistanceMatrix` |
+| `photo($name, $w, $h)` | `PendingPhoto` (`url()`, `contents()`, `save()`) |
+| `photoUri($name, $w, $h)` / `photoContents($name, $w, $h)` | key-free URL / bytes (one request) |
+| `photoUrl($name, $w, $h)` | keyed media URL, built locally — server-side only |
+| `check()` | `list<ApiCheckResult>` — is each Google API enabled and reachable? |
 
 Common lookups take a scalar shorthand or a full query object for options.
 
@@ -417,30 +455,30 @@ $matrix->destination(1);           // Collection<MatrixElement> keyed by origin 
 GooglePlaces::matrix($origins, $destinations)->departingAt(now()->addHour())->driving();
 ```
 
-### Photo URLs
+### Photos
+
+`photo()` returns a handle on one place photo. Every request goes through the client — throttled
+on the `places` budget, reported through the lifecycle events, and intercepted by
+`GooglePlaces::fake()`. The API key is sent as a request header and never exposed to the
+browser.
 
 ```php
 use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
 
 // $photoName is a photo resource name from a place ($place->photos).
-$url = GooglePlaces::photoUrl($photoName, maxWidth: 800, maxHeight: 600);
-```
-
-### Fetching photo bytes
-
-Beyond building the URL, `photo()` fetches the actual image. The API key is sent as a
-request header and never exposed to the browser — `url()` returns Google's key-free media
-URL.
-
-```php
-use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
-
 $photo = GooglePlaces::photo($photoName, maxWidth: 800, maxHeight: 600);
 
+$url   = $photo->url();                   // Google's key-free media URL (safe for the browser)
 $bytes = $photo->contents();              // raw image bytes
 $path  = $photo->save('public', 'p.jpg'); // store on a filesystem disk → returns the path
-$url   = $photo->url();                   // final, key-free media URL (safe for the browser)
+
+// The same two requests without the handle:
+GooglePlaces::photoUri($photoName, 800, 600);
+GooglePlaces::photoContents($photoName, 800, 600);
 ```
+
+`photoUrl()` builds the media URL **with the key in its query string**, locally and without a
+request — use it only server-side, never in HTML.
 
 ### Error handling
 
@@ -516,11 +554,23 @@ $request->validate([
 ]);
 ```
 
-### Preflight check command
+### Health check
 
-Verify the configured key and that each API is enabled/reachable (the key is redacted in
-the output). A Geocoding answer of `REQUEST_DENIED` fails the check even though Google sends it
-with HTTP 200:
+`check()` probes the Places, Routes and Geocoding APIs with the configured key and returns one
+`ApiCheckResult` (`api`, `ok`, `detail`) per API — ready for a health endpoint or a deploy
+gate. A Geocoding answer of `REQUEST_DENIED` fails even though Google sends it with HTTP 200;
+the key is redacted from every `detail`. Probes are not retried, throttled or cached. With no
+key configured it throws `PlacesException::missingApiKey()`.
+
+```php
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\ApiCheckResult;
+use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
+
+$down = array_filter(GooglePlaces::check(), fn (ApiCheckResult $r) => ! $r->ok);
+```
+
+The `google-places:check` command prints the same results as a table and exits non-zero when
+any API fails:
 
 ```bash
 php artisan google-places:check
@@ -641,14 +691,24 @@ $fake->assertNothingGeocoded();
 
 Queue helpers: `withAutocomplete`, `withDetails`, `withGeocode`, `withGeocodeAddress`,
 `withMatrix`, `withTextSearch`, `withNearbySearch`, `withFindPlace`, `withDistance`,
-`withPhotoUrl`. Assertions: `assertAutocompleted`, `assertDetailsRequested`,
-`assertGeocoded`, `assertAddressGeocoded`, `assertMatrixComputed`, `assertTextSearched`,
-`assertNearbySearched`, `assertFindPlaceRequested`, `assertDistanceRequested`,
-`assertNothingRequested`, `assertNothingGeocoded`, `assertNothingAutocompleted`.
+`withPhotoUrl`, `withPhoto(string $bytes, ?string $uri = null)`, `withCheck(list<ApiCheckResult>)`.
+Assertions: `assertAutocompleted`, `assertDetailsRequested`, `assertGeocoded`,
+`assertAddressGeocoded`, `assertMatrixComputed`, `assertTextSearched`, `assertNearbySearched`,
+`assertFindPlaceRequested`, `assertDistanceRequested`, `assertPhotoRequested(name|Closure(PhotoQuery))`,
+`assertChecked`, `assertNothingRequested`, `assertNothingGeocoded`, `assertNothingAutocompleted`.
 
-`GooglePlaces::fake()` also drives `session()`, `matrix()`, and the paginated search
-helpers, so code paths that use them stay fully fakeable. `photo()` is exercised with
-Laravel's `Http::fake()` / `Storage::fake()`.
+The fake is a `PlacesClient`, installed behind the facade **and** the container binding, so
+constructor-injected clients, `session()`, `matrix()`, `photo()` (including `save()`, which
+writes the seeded bytes), the paginated search helpers and the `google-places:check` command all
+hit it — nothing reaches Google.
+
+```php
+$fake = GooglePlaces::fake()->withPhoto('JPEG-BYTES');
+
+GooglePlaces::photo('places/p1/photos/a')->save('public', 'p1.jpg');
+
+$fake->assertPhotoRequested('places/p1/photos/a');
+```
 
 Run the package test suite with:
 
