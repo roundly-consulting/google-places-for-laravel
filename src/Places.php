@@ -274,17 +274,15 @@ final class Places implements PlacesClient
                 $response = $this->send('computeMatrix', fn (): Response => $this->routesClient($this->mask('routes'))
                     ->post('/distanceMatrix/v2:computeRouteMatrix', $query->toRoutesBody()));
 
-                if (! $response->successful()) {
+                $elements = $response->json();
+
+                // One event per request: a body that is no answer is a failure, never
+                // "received" and then "failed".
+                if (! $response->successful() || ! is_array($elements)) {
                     throw $this->failed('computeMatrix', $response);
                 }
 
                 $this->received('computeMatrix', $response);
-
-                $elements = $response->json();
-
-                if (! is_array($elements)) {
-                    throw $this->failed('computeMatrix', $response);
-                }
 
                 return $elements;
             },
@@ -317,17 +315,13 @@ final class Places implements PlacesClient
                 $response = $this->send('distance', fn (): Response => $this->routesClient($this->mask('routes'))
                     ->post('/distanceMatrix/v2:computeRouteMatrix', $query->toRoutesBody()));
 
-                if (! $response->successful()) {
+                $elements = $response->json();
+
+                if (! $response->successful() || ! is_array($elements) || $elements === []) {
                     throw $this->failed('distance', $response);
                 }
 
                 $this->received('distance', $response);
-
-                $elements = $response->json();
-
-                if (! is_array($elements) || $elements === []) {
-                    throw $this->failed('distance', $response);
-                }
 
                 return $elements;
             },

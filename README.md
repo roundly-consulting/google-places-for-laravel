@@ -527,8 +527,13 @@ A missing API key throws `PlacesException::missingApiKey()` before any HTTP requ
 
 ### Events
 
-Every call dispatches a lifecycle event you can listen to for logging, metrics, or alerting.
-Neither event carries the API key.
+Every request the client sends to Google dispatches exactly one lifecycle event you can listen
+to for logging, metrics, or alerting: `PlacesResponseReceived` for an answer, `PlacesRequestFailed`
+for an error or an unreachable API (`httpStatus` `0`). A call that sends nothing dispatches
+nothing: a cache hit, `photoUrl()` (built locally), and a call refused before sending — no key
+configured, or a client-side rate-limit fail-fast (`RateLimitExceededException`). `check()`
+reports through its return value instead, so its probes dispatch no events either. Neither event
+carries the API key.
 
 ```php
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
@@ -546,7 +551,7 @@ Cache keys never contain the API key.
 
 ### Request logging
 
-Opt-in logging of every call is built on the lifecycle events. The API key is never logged — a
+Opt-in logging of every request is built on the lifecycle events. The API key is never logged — a
 failure's message is redacted as described under [Error handling](#error-handling).
 
 ```dotenv
