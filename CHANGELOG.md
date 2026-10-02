@@ -18,8 +18,9 @@ Initial public release.
   location-bias helpers (`nearby()`, `withinBounds()`).
 - Reverse and forward geocoding (`geocode()`, `geocodeAddress()`) with typed address components
   such as `street()`, `city()`, `postalCode()` and `countryCode()`.
-- Distance and travel time through the Routes API (`distance()`, including round trips) and a full
-  origins × destinations matrix (`GooglePlaces::matrix()`).
+- Distance and travel time through the Routes API (`distance()`: one origin to one destination, or
+  to several as `MultipleDistances` — one separate trip each) and a full origins × destinations
+  matrix (`GooglePlaces::matrix()`).
 - Photo URLs and photo bytes (`GooglePlaces::photo()`), with the API key sent as a header and never
   exposed.
 - A `PlacesException` with typed accessors (`isDenied()`, `isRateLimited()`, `isUnreachable()`,

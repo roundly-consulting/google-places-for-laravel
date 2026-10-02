@@ -18,12 +18,12 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleDistances;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\PhotoQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
-use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\SearchPage;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
@@ -60,7 +60,7 @@ final class GooglePlacesFake implements PlacesClient
 
     private ?Place $findPlaceReturn = null;
 
-    private Distance|Roundtrip|null $distanceReturn = null;
+    private Distance|MultipleDistances|null $distanceReturn = null;
 
     private ?string $photoUrlReturn = null;
 
@@ -174,7 +174,7 @@ final class GooglePlacesFake implements PlacesClient
         return $this;
     }
 
-    public function withDistance(Distance|Roundtrip $distance): self
+    public function withDistance(Distance|MultipleDistances $distance): self
     {
         $this->distanceReturn = $distance;
 
@@ -330,7 +330,7 @@ final class GooglePlacesFake implements PlacesClient
         return $this->findPlaceReturn;
     }
 
-    public function distance(DistanceQuery $query): Distance|Roundtrip
+    public function distance(DistanceQuery $query): Distance|MultipleDistances
     {
         $this->distanceCalls[] = $query;
 

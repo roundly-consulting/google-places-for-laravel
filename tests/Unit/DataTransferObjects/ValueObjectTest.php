@@ -5,9 +5,9 @@ declare(strict_types=1);
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Distance;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\LocationDefinition;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleDistances;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleLocations;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
-use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
 
 it('holds a location and serialises it', function () {
@@ -67,19 +67,22 @@ it('normalises a travel-mode string on a distance', function () {
     expect((new Distance('1 km', 1000, '1m', 60, 'driving'))->isDriving())->toBeTrue();
 });
 
-it('maps several routes elements to a roundtrip', function () {
-    $trip = Roundtrip::fromRoutesElements([
+it('maps several routes elements to one distance per destination, never a sum', function () {
+    $distances = MultipleDistances::fromRoutesElements([
         ['distanceMeters' => 10000, 'duration' => '600s'],
         ['distanceMeters' => 15000, 'duration' => '900s'],
-    ], TravelMode::Driving);
+    ], TravelMode::Walking);
 
-    expect($trip)
-        ->toBeInstanceOf(Roundtrip::class)
-        ->distanceInMeters->toBe(25000)
-        ->humanReadableDistance->toBe('25 km')
-        ->durationInSeconds->toBe(1500)
-        ->type->toBe(TravelMode::Driving)
-        ->and($trip->distances)->toHaveCount(2);
+    expect($distances)
+        ->toBeInstanceOf(MultipleDistances::class)
+        ->type->toBe(TravelMode::Walking)
+        ->and($distances->distances)->toHaveCount(2)
+        ->and($distances->distances[0]->distanceInMeters)->toBe(10000)
+        ->and($distances->distances[1]->humanReadableDuration)->toBe('15m')
+        ->and($distances->distances[1]->type)->toBe(TravelMode::Walking)
+        // One origin to several destinations is not one route: there is no total to add up.
+        ->and(property_exists($distances, 'distanceInMeters'))->toBeFalse()
+        ->and(property_exists($distances, 'durationInSeconds'))->toBeFalse();
 });
 
 it('converts meters to a human-readable string', function () {

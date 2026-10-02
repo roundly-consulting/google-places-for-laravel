@@ -154,7 +154,7 @@ the use cases.
 | `textSearchPaginated($query)`, `nearbySearchPaginated($query)` | `SearchPaginator` |
 | `findPlace($text, ?$bias)` | `?Place` |
 | `geocode($location, ?$lng)`, `geocodeAddress($query)` | `Collection<ReverseGeocodingResult>` |
-| `distance(DistanceQuery)` | `Distance\|Roundtrip` |
+| `distance(DistanceQuery)` | `Distance\|MultipleDistances` (one trip per destination) |
 | `matrix($origins, $destinations)` | `PendingMatrix` (`driving()`, `walking()`, …) |
 | `computeMatrix(MatrixQuery)` | `DistanceMatrix` |
 | `photo($name, $w, $h)` | `PendingPhoto` (`url()`, `contents()`, `save()`) |
@@ -390,41 +390,49 @@ the field mask.
 
 ### Distance & travel time (Routes API)
 
-`distance()` returns a `Distance` for a single destination, or a `Roundtrip` (legs plus
-totals) when you pass `MultipleLocations`. Choose the mode with the `TravelMode` enum.
+`distance()` measures from **one origin**. To a single `Location` it returns a `Distance`. To
+`MultipleLocations` it returns `MultipleDistances`: one separate trip from the origin to each
+destination (not a chained route, so there is no total). Choose the mode with the `TravelMode`
+enum.
 
 ```php
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleLocations;
-use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
 use RoundlyConsulting\GooglePlaces\Facades\GooglePlaces;
 
 $distance = GooglePlaces::distance(new DistanceQuery(
-    from: new Location(48.1486, 17.1077),
-    to: new MultipleLocations([
-        new Location(48.2082, 16.3738),
-        new Location(50.0755, 14.4378),
-    ]),
-    type: TravelMode::Driving,            // Driving | Walking | Bicycling | Transit
-    departureAt: now()->addHour(),        // optional; enables traffic-aware driving ETAs
+    from: new Location(48.1486, 17.1077),  // Bratislava
+    to: new Location(48.2082, 16.3738),    // Vienna
+    type: TravelMode::Driving,             // Driving | Walking | Bicycling | Transit
+    departureAt: now()->addHour(),         // optional; enables traffic-aware driving ETAs
 ));
 
-echo $distance->humanReadableDistance; // e.g. "330.4 km" (formatted by the package)
-echo $distance->distanceInMeters;      // e.g. 330400
-echo $distance->humanReadableDuration; // e.g. "3h 20m"
-echo $distance->durationInSeconds;     // e.g. 12000
+echo $distance->humanReadableDistance; // e.g. "79.8 km" (formatted by the package)
+echo $distance->distanceInMeters;      // e.g. 79800
+echo $distance->humanReadableDuration; // e.g. "1h 5m"
+echo $distance->durationInSeconds;     // e.g. 3900
 echo $distance->type->value;           // "driving"
 
-if ($distance instanceof Roundtrip) {
-    foreach ($distance->distances as $leg) {
-        echo $leg->humanReadableDistance;
-    }
+// One origin, several destinations → MultipleDistances, in destination order:
+$fromBratislava = GooglePlaces::distance(new DistanceQuery(
+    from: new Location(48.1486, 17.1077),
+    to: new MultipleLocations([
+        new Location(48.2082, 16.3738),    // Vienna
+        new Location(50.0755, 14.4378),    // Prague
+    ]),
+));
+
+foreach ($fromBratislava->distances as $i => $trip) {
+    echo "Bratislava → destination {$i}: {$trip->humanReadableDistance}";
 }
 ```
 
-> A leg with no available route raises a `PlacesException`. The Routes API does not return
+A single-element `MultipleLocations` still returns a plain `Distance`. For several origins at
+once, use [`matrix()`](#full-distance-matrix-mn).
+
+> A destination with no available route raises a `PlacesException`. The Routes API does not return
 > human-readable strings, so `humanReadableDistance`/`humanReadableDuration` are formatted by
 > the package.
 

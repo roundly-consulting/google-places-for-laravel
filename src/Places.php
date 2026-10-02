@@ -26,11 +26,11 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\LocationDefinition;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleDistances;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
-use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\SearchPage;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
@@ -308,7 +308,7 @@ final class Places implements PlacesClient
         return $this->textSearch($query)->first();
     }
 
-    public function distance(DistanceQuery $query): Distance|Roundtrip
+    public function distance(DistanceQuery $query): Distance|MultipleDistances
     {
         return $this->cached(
             'distance',
@@ -331,7 +331,7 @@ final class Places implements PlacesClient
 
                 return $elements;
             },
-            function (?array $elements) use ($query): Distance|Roundtrip {
+            function (?array $elements) use ($query): Distance|MultipleDistances {
                 // Decoding, not fetching: a cached payload has to raise the same
                 // "no route" as a fresh one, or the answer would depend on whether
                 // somebody asked before.
@@ -350,7 +350,7 @@ final class Places implements PlacesClient
                 }
 
                 if (count($elements) > 1) {
-                    return Roundtrip::fromRoutesElements($elements, $query->type);
+                    return MultipleDistances::fromRoutesElements($elements, $query->type);
                 }
 
                 return Distance::fromRoutesElement((array) $elements[0], $query->type);

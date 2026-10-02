@@ -13,11 +13,11 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\Distance;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\LocationDefinition;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleDistances;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleLocations;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
-use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\Enums\TravelMode;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
 
@@ -294,7 +294,7 @@ it('computes a single distance via the routes api', function () {
         && $request->hasHeader('X-Goog-FieldMask'));
 });
 
-it('computes a roundtrip distance for multiple destinations', function () {
+it('computes one distance per destination for multiple destinations', function () {
     Http::fake([
         'routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix' => Http::response([
             ['originIndex' => 0, 'destinationIndex' => 1, 'distanceMeters' => 15000, 'duration' => '900s', 'condition' => 'ROUTE_EXISTS'],
@@ -302,19 +302,22 @@ it('computes a roundtrip distance for multiple destinations', function () {
         ]),
     ]);
 
-    $trip = places()->distance(new DistanceQuery(
+    $result = places()->distance(new DistanceQuery(
         new Location(1, 2),
         new MultipleLocations([new Location(3, 4), new Location(5, 6)]),
         TravelMode::Driving,
     ));
 
-    expect($trip)
-        ->toBeInstanceOf(Roundtrip::class)
-        ->distanceInMeters->toBe(25000)
-        ->humanReadableDistance->toBe('25 km')
-        ->durationInSeconds->toBe(1500)
-        ->and($trip->distances[0]->distanceInMeters)->toBe(10000)
-        ->and($trip->distances[1]->distanceInMeters)->toBe(15000);
+    expect($result)
+        ->toBeInstanceOf(MultipleDistances::class)
+        ->type->toBe(TravelMode::Driving)
+        ->and($result->distances)->toHaveCount(2)
+        ->and($result->distances[0]->distanceInMeters)->toBe(10000)
+        ->and($result->distances[1]->distanceInMeters)->toBe(15000);
+
+    // Every leg starts at the one origin: the destinations are not chained into a route.
+    Http::assertSent(fn (Request $request): bool => count($request['origins']) === 1
+        && count($request['destinations']) === 2);
 });
 
 it('sends a traffic-aware routing preference and departure time when departing', function () {

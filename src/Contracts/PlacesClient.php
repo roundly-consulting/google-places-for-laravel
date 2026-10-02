@@ -15,11 +15,11 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleDistances;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
-use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
 use RoundlyConsulting\GooglePlaces\Support\PendingMatrix;
@@ -142,9 +142,13 @@ interface PlacesClient
     public function findPlace(string $text, ?Location $bias = null): ?Place;
 
     /**
+     * Distance and travel time from one origin: a `Distance` for one destination, or
+     * `MultipleDistances` — one separate trip per destination, not a chained route — for
+     * several.
+     *
      * @throws PlacesException
      */
-    public function distance(DistanceQuery $query): Distance|Roundtrip;
+    public function distance(DistanceQuery $query): Distance|MultipleDistances;
 
     /**
      * Compute a full origins × destinations distance matrix.

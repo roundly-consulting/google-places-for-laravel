@@ -17,11 +17,11 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\DistanceQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\GeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\MatrixQuery;
+use RoundlyConsulting\GooglePlaces\DataTransferObjects\MultipleDistances;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
-use RoundlyConsulting\GooglePlaces\DataTransferObjects\Roundtrip;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Support\PendingMatrix;
 use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
@@ -46,7 +46,7 @@ use RoundlyConsulting\GooglePlaces\Testing\GooglePlacesFake;
  * @method static SearchPaginator textSearchPaginated(TextSearchQuery|string $query)
  * @method static SearchPaginator nearbySearchPaginated(NearbySearchQuery $query)
  * @method static ?Place findPlace(string $text, ?Location $bias = null)
- * @method static Distance|Roundtrip distance(DistanceQuery $query)
+ * @method static Distance|MultipleDistances distance(DistanceQuery $query)
  * @method static DistanceMatrix computeMatrix(MatrixQuery $query)
  *
  * @see PlacesClient
