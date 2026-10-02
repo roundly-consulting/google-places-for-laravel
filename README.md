@@ -500,6 +500,7 @@ try {
     if ($e->isRateLimited())      { /* back off */ }
     elseif ($e->isDenied())       { /* check key / billing / enabled APIs */ }
     elseif ($e->isInvalidRequest()) { /* fix the request */ }
+    elseif ($e->isUnreachable())  { /* timeout, DNS failure, refused connection */ }
 
     report($e); // $e->googleStatus(), $e->googleReason(), $e->googleErrorMessage()
 }
@@ -592,6 +593,17 @@ is installed, this package auto-registers a `google_places` driver on the geoloc
 manager. It forward-geocodes **addresses** and reverse-geocodes **coordinates** through
 Google Places, mapping the result onto geolocation's own `Location` DTO. (Google Places has
 no IP geolocation, so IP-only lookups fall through to the next provider.)
+
+Like geolocation's own providers, the driver never aborts your pipeline. An unreachable Google
+(timeout, DNS failure, refused connection) is reported as geolocation's
+`ProviderUnavailableException`, which the manager records on `LocationResolutionFailed` and skips.
+Every other Places failure — no key configured, `REQUEST_DENIED`, `OVER_QUERY_LIMIT`, a
+client-side rate-limit fail-fast — is a miss (`null`), so the next provider answers. The
+`PlacesRequestFailed` event still fires for an API error.
+
+The driver reads google-places' own config (`GOOGLE_PLACES_API_KEY`, timeouts, rate limits).
+geolocation's per-call overrides (`withToken('google_places', …)`, `withConfig()`, `withTimeout()`)
+do not reach it.
 
 Opt the driver into your geolocation pipeline, or call it ad-hoc:
 

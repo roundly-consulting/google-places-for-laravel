@@ -39,6 +39,9 @@ class PlacesException extends Exception
 
     public readonly ?string $googleErrorMessage;
 
+    /** Set by {@see connectionFailed()}: the request never got an answer. */
+    private bool $unreachable = false;
+
     /**
      * Every message is redacted here, at the one place they all pass through: a transport
      * failure's message ends in the request URL (the Geocoding key rides in its query
@@ -82,7 +85,10 @@ class PlacesException extends Exception
      */
     public static function connectionFailed(ConnectionException $exception): self
     {
-        return new self("Could not reach the Google Places API: {$exception->getMessage()}");
+        $placesException = new self("Could not reach the Google Places API: {$exception->getMessage()}");
+        $placesException->unreachable = true;
+
+        return $placesException;
     }
 
     public static function tooManyPrimaryTypes(int $max = 5): self
@@ -194,6 +200,12 @@ class PlacesException extends Exception
     {
         return in_array($this->googleStatus, self::DENIED_STATUSES, true)
             || in_array($this->googleReason, self::DENIED_REASONS, true);
+    }
+
+    /** Google could not be reached at all (timeout, DNS failure, refused connection). */
+    public function isUnreachable(): bool
+    {
+        return $this->unreachable;
     }
 
     /** The request itself is malformed — never a key problem filed under the same status. */

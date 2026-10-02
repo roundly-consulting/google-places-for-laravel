@@ -7,9 +7,11 @@ namespace RoundlyConsulting\GooglePlaces\Geolocation;
 use RoundlyConsulting\Geolocation\DataTransferObjects\GeolocationQuery;
 use RoundlyConsulting\Geolocation\DataTransferObjects\Location;
 use RoundlyConsulting\Geolocation\Enum\GeolocationType;
+use RoundlyConsulting\Geolocation\Exceptions\ProviderUnavailableException;
 use RoundlyConsulting\Geolocation\GeolocationProvider;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
+use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
 
 /**
  * Registers Google Places as a geolocation driver so a host running
@@ -20,6 +22,11 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
  * geolocation, so IP-only (or empty) queries resolve to null and fall through to
  * the next provider in the host's pipeline.
  *
+ * Like geolocation's own providers, it never aborts the host's pipeline: an
+ * unreachable Google becomes a ProviderUnavailableException (which the manager records
+ * and skips), and every other Places failure — a missing key, REQUEST_DENIED,
+ * OVER_QUERY_LIMIT, a client-side rate-limit fail-fast — is a miss (null).
+ *
  * @internal Wiring: registered by the service provider as the `google_places`
  *           geolocation driver. Use it through geolocation-for-laravel.
  */
@@ -29,16 +36,32 @@ final class GooglePlacesProvider implements GeolocationProvider
 
     public function locate(GeolocationQuery $query): ?Location
     {
-        if ($query->latitude !== null && $query->longitude !== null) {
-            $result = $this->places->geocode($query->latitude, $query->longitude)->first();
-        } elseif ($query->address !== null && $query->address !== '') {
-            $result = $this->places->geocodeAddress($query->address)->first();
-        } else {
-            // IP-only or empty query — Google Places cannot resolve it.
+        try {
+            $result = $this->lookup($query);
+        } catch (PlacesException $exception) {
+            if ($exception->isUnreachable()) {
+                // The message is already redacted; the transport exception is not chained.
+                throw ProviderUnavailableException::for('google_places', $exception);
+            }
+
             return null;
         }
 
         return $result instanceof ReverseGeocodingResult ? $this->toLocation($result) : null;
+    }
+
+    private function lookup(GeolocationQuery $query): ?ReverseGeocodingResult
+    {
+        if ($query->latitude !== null && $query->longitude !== null) {
+            return $this->places->geocode($query->latitude, $query->longitude)->first();
+        }
+
+        if ($query->address !== null && $query->address !== '') {
+            return $this->places->geocodeAddress($query->address)->first();
+        }
+
+        // IP-only or empty query — Google Places cannot resolve it.
+        return null;
     }
 
     /**

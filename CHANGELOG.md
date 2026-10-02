@@ -22,14 +22,17 @@ Initial public release.
   origins × destinations matrix (`GooglePlaces::matrix()`).
 - Photo URLs and photo bytes (`GooglePlaces::photo()`), with the API key sent as a header and never
   exposed.
-- A `PlacesException` with typed accessors (`isDenied()`, `isRateLimited()`, `googleReason()`, …);
+- A `PlacesException` with typed accessors (`isDenied()`, `isRateLimited()`, `isUnreachable()`,
+  `googleReason()`, …);
   the API key never appears in messages, events, logs or cache keys — every message, including a
   connection failure's (which ends in the request URL), is redacted.
 - Optional response caching, opt-in request logging and lifecycle events
   (`PlacesResponseReceived`, `PlacesRequestFailed`).
 - `ValidPlaceId` and `ValidCoordinates` validation rules, and the `google-places:check` command to
   verify your key and enabled APIs.
-- A `google_places` driver for geolocation-for-laravel, and per-API client-side rate limiting.
+- A `google_places` driver for geolocation-for-laravel that never aborts the host's pipeline (an
+  unreachable Google is a `ProviderUnavailableException`, any other Places failure a miss), and
+  per-API client-side rate limiting.
 - `GooglePlaces::fake()` for testing without real HTTP.
 - `GooglePlaces::check()` returns one `ApiCheckResult` per Google API (Places, Routes, Geocoding)
   for health endpoints and deploy gates; `google-places:check` is a thin wrapper over it. The key

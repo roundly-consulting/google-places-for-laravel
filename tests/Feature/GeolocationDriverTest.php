@@ -2,16 +2,23 @@
 
 declare(strict_types=1);
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use RoundlyConsulting\Geolocation\DataTransferObjects\Coordinates;
 use RoundlyConsulting\Geolocation\DataTransferObjects\GeolocationQuery;
 use RoundlyConsulting\Geolocation\DataTransferObjects\Location as ResolvedLocation;
 use RoundlyConsulting\Geolocation\Enum\GeolocationType;
+use RoundlyConsulting\Geolocation\Events\LocationResolutionFailed;
 use RoundlyConsulting\Geolocation\Events\LocationResolved;
+use RoundlyConsulting\Geolocation\Exceptions\ProviderUnavailableException;
 use RoundlyConsulting\Geolocation\Exceptions\UnknownProviderException;
 use RoundlyConsulting\Geolocation\Facades\Geolocation;
+use RoundlyConsulting\Geolocation\GeolocationProvider;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ReverseGeocodingResult;
+use RoundlyConsulting\GooglePlaces\Exceptions\RateLimitExceededException;
 use RoundlyConsulting\GooglePlaces\Testing\GooglePlacesFake;
 
 function geocodingResult(): ReverseGeocodingResult
@@ -110,5 +117,72 @@ it('resolves through google_places when it is the only pipeline provider', funct
     Event::assertDispatched(
         LocationResolved::class,
         fn (LocationResolved $event): bool => $event->provider === 'google_places',
+    );
+});
+
+/**
+ * Put google_places first and a stub that always answers behind it, as a host's
+ * `pipeline => ['google_places', 'default']` would.
+ */
+function pipelineWithFallback(): void
+{
+    Geolocation::extend('fallback', fn (): GeolocationProvider => new class implements GeolocationProvider
+    {
+        public function locate(GeolocationQuery $query): ResolvedLocation
+        {
+            return new ResolvedLocation('Fallback', '', 'Fallback City', 'SK', 48.1, 17.1, GeolocationType::Default);
+        }
+    });
+
+    config()->set('geolocation.pipeline', ['google_places', 'fallback']);
+    config()->set('geolocation.cache.enabled', false);
+}
+
+it('falls through to the next provider when google answers with an error', function (array $body) {
+    pipelineWithFallback();
+    Http::preventStrayRequests();
+    Http::fake(['maps.googleapis.com/maps/api/geocode/json*' => Http::response($body)]);
+
+    expect(Geolocation::locateAddress('Bratislava')?->city)->toBe('Fallback City')
+        ->and(Geolocation::locateCoordinates(new Coordinates(48.1486, 17.1077))?->city)->toBe('Fallback City');
+})->with([
+    'over query limit' => [['status' => 'OVER_QUERY_LIMIT', 'error_message' => 'You have exceeded your daily request quota.']],
+    'request denied' => [['status' => 'REQUEST_DENIED', 'error_message' => 'The provided API key is invalid.']],
+    'invalid request' => [['status' => 'INVALID_REQUEST']],
+]);
+
+it('falls through to the next provider when no api key is configured', function () {
+    pipelineWithFallback();
+    config()->set('google-places.key', null);
+    Http::preventStrayRequests();
+
+    expect(Geolocation::locateAddress('Bratislava')?->city)->toBe('Fallback City');
+});
+
+it('falls through to the next provider on a client-side rate-limit fail-fast', function () {
+    pipelineWithFallback();
+
+    $places = Mockery::mock(PlacesClient::class);
+    $places->shouldReceive('geocodeAddress')->andThrow(RateLimitExceededException::for('geocoding', 3));
+    app()->instance(PlacesClient::class, $places);
+
+    expect(Geolocation::locateAddress('Bratislava')?->city)->toBe('Fallback City');
+});
+
+it('reports an unreachable google as an unavailable provider and moves on', function () {
+    Event::fake([LocationResolutionFailed::class]);
+    config()->set('geolocation.pipeline', ['google_places']);
+    config()->set('geolocation.cache.enabled', false);
+    config()->set('google-places.http.retries', 0);
+    Http::fake(fn (Request $request) => throw new ConnectionException("cURL error 7: refused for {$request->url()}"));
+
+    expect(Geolocation::locateAddress('Bratislava'))->toBeNull();
+
+    Event::assertDispatched(
+        LocationResolutionFailed::class,
+        fn (LocationResolutionFailed $event): bool => $event->provider === 'google_places'
+            && $event->error instanceof ProviderUnavailableException
+            && str_contains($event->error->getMessage(), 'refused')
+            && ! str_contains($event->error->getMessage(), 'GoogleApiKey'),
     );
 });

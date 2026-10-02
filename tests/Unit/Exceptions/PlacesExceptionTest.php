@@ -57,7 +57,10 @@ it('builds a missing-key exception without leaking secrets', function () {
 it('builds a connection-failed exception', function () {
     $exception = PlacesException::connectionFailed(new ConnectionException('timeout'));
 
-    expect($exception->getMessage())->toContain('Could not reach');
+    expect($exception->getMessage())->toContain('Could not reach')
+        ->and($exception->isUnreachable())->toBeTrue()
+        ->and($exception->getPrevious())->toBeNull()
+        ->and(PlacesException::missingApiKey()->isUnreachable())->toBeFalse();
 });
 
 it('builds validation exceptions', function () {
