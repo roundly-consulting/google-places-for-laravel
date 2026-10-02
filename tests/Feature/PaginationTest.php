@@ -101,3 +101,22 @@ it('returns a single page for nearby search (new api does not paginate)', functi
 
     Http::assertSentCount(1);
 });
+
+it('asks text search for its next page token but never nearby search, whose response has none', function () {
+    Http::fake([
+        'places.googleapis.com/v1/places:searchText' => Http::response(pageResponse('Text', null)),
+        // A token here would be a protocol violation; it must not make the paginator ask again.
+        'places.googleapis.com/v1/places:searchNearby' => Http::response(pageResponse('Near', 'not-a-nearby-field')),
+    ]);
+
+    places()->textSearchPaginated('museums')->all();
+    $nearby = places()->nearbySearchPaginated(new NearbySearchQuery(new Location(1, 2), radius: 1000))->all();
+
+    expect($nearby)->toHaveCount(1);
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'places:searchText')
+        && str_contains($request->header('X-Goog-FieldMask')[0], ',nextPageToken'));
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), 'places:searchNearby')
+        && $request->header('X-Goog-FieldMask')[0] === config('google-places.field_masks.search'));
+    Http::assertSentCount(2);
+});

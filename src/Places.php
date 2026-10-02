@@ -249,6 +249,7 @@ final class Places implements PlacesClient
                 'textSearch',
                 '/places:searchText',
                 ($pageToken === null ? $query : $query->withPageToken($pageToken))->toBody(),
+                paginates: true,
             ),
             $this->maxPages(),
             'textSearch',
@@ -258,7 +259,7 @@ final class Places implements PlacesClient
     public function nearbySearchPaginated(NearbySearchQuery $query): SearchPaginator
     {
         return new SearchPaginator(
-            fn (?string $pageToken): SearchPage => $this->searchPage('nearbySearch', '/places:searchNearby', $query->toBody()),
+            fn (?string $pageToken): SearchPage => $this->searchPage('nearbySearch', '/places:searchNearby', $query->toBody(), paginates: false),
             $this->maxPages(),
             'nearbySearch',
         );
@@ -477,11 +478,17 @@ final class Places implements PlacesClient
     /**
      * Fetch one page of a search and surface its `nextPageToken`.
      *
+     * Only `searchText` paginates. `SearchNearbyResponse` has no `nextPageToken` field, and
+     * Google validates every `X-Goog-FieldMask` path against the response, so asking nearby
+     * search for one is an invalid mask — and a stray token must not make it page again.
+     *
      * @param  array<string, mixed>  $body
      */
-    private function searchPage(string $endpoint, string $uri, array $body): SearchPage
+    private function searchPage(string $endpoint, string $uri, array $body, bool $paginates): SearchPage
     {
-        $response = $this->send($endpoint, fn (): Response => $this->placesClient($this->mask('search').',nextPageToken')
+        $mask = $this->mask('search').($paginates ? ',nextPageToken' : '');
+
+        $response = $this->send($endpoint, fn (): Response => $this->placesClient($mask)
             ->post($uri, $body));
 
         if (! $response->successful()) {
@@ -494,7 +501,7 @@ final class Places implements PlacesClient
             ->map(static fn (array $place): Place => Place::fromResponse($place))
             ->all());
 
-        $token = $response->json('nextPageToken');
+        $token = $paginates ? $response->json('nextPageToken') : null;
 
         return new SearchPage($places, is_string($token) ? $token : null);
     }
