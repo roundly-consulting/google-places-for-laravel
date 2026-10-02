@@ -33,6 +33,16 @@ it('redacts the api key in its output', function () {
         ->assertExitCode(0);
 });
 
+it('stars out a short key completely instead of printing half of it', function () {
+    config()->set('google-places.key', 'abcd1234');
+    fakeHealthyApis();
+
+    $this->artisan('google-places:check')
+        ->expectsOutputToContain('Using API key ********')
+        ->doesntExpectOutputToContain('1234')
+        ->assertExitCode(0);
+});
+
 it('fails and reports the offending api', function () {
     Http::fake([
         'places.googleapis.com/v1/places:searchText' => Http::response(['error' => ['status' => 'PERMISSION_DENIED', 'message' => 'denied']], 403),

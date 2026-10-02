@@ -7,6 +7,7 @@ namespace RoundlyConsulting\GooglePlaces\Commands;
 use Illuminate\Console\Command;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ApiCheckResult;
+use RoundlyConsulting\GooglePlaces\Support\Redactor;
 
 /**
  * Preflight doctor: a thin console face over `GooglePlaces::check()`. The key
@@ -28,7 +29,7 @@ final class CheckCommand extends Command
             return self::FAILURE;
         }
 
-        $this->line('Using API key '.str_repeat('*', max(0, strlen($key) - 4)).substr($key, -4));
+        $this->line('Using API key '.Redactor::mask($key));
 
         $results = $places->check();
 
