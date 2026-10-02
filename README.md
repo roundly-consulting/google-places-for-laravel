@@ -95,7 +95,7 @@ The package works with zero extra configuration once the key is set. Every value
 | `cache.store` | `?string` | `null` | `GOOGLE_PLACES_CACHE_STORE` | Cache store (null = default). |
 | `cache.ttl` | `int` | `86400` | `GOOGLE_PLACES_CACHE_TTL` | Cache TTL (seconds). |
 | `pagination.max_pages` | `int` | `5` | `GOOGLE_PLACES_MAX_PAGES` | Safety cap for the paginated search helpers; a warning is logged when hit. |
-| `logging.enabled` | `bool` | `false` | `GOOGLE_PLACES_LOGGING` | Log every call (endpoint, status, duration). The API key is never logged. |
+| `logging.enabled` | `bool` | `false` | `GOOGLE_PLACES_LOGGING` | Log every request (endpoint, status, duration). The API key is never logged. |
 | `logging.channel` | `?string` | `null` | `GOOGLE_PLACES_LOG_CHANNEL` | Log channel to write to (null = default channel). |
 | `rate_limits.owner` | `string` | `app` | `GOOGLE_PLACES_RATELIMIT_OWNER` | Bucket owner, shared across surfaces (`google-places:{surface}:{owner}`). |
 | `rate_limits.{surface}.enabled` | `bool` | `true` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_ENABLED` | Throttle this surface (`places`/`routes`/`geocoding`); `false` = unthrottled. |
@@ -483,8 +483,12 @@ request — use it only server-side, never in HTML.
 ### Error handling
 
 Failures throw `RoundlyConsulting\GooglePlaces\Exceptions\PlacesException`, with typed
-accessors so you can branch on what went wrong. The API key is never included in messages,
-events, or cache keys.
+accessors so you can branch on what went wrong. The API key never appears in an exception
+message, an event or a cache key: every message — Google's error text and a transport failure's,
+which ends in the request URL where the Geocoding API carries its `key=` — is redacted. The
+configured key is masked to its last four characters wherever it appears, and so is the value of
+any `key=`/`token=`/`signature=` query parameter. (`$e->response` is the raw HTTP response, request
+URL included — don't serialize it into reports.)
 
 ```php
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
@@ -533,12 +537,17 @@ Cache keys never contain the API key.
 
 ### Request logging
 
-Opt-in logging of every call is built on the lifecycle events. The API key is never logged.
+Opt-in logging of every call is built on the lifecycle events. The API key is never logged — a
+failure's message is redacted as described under [Error handling](#error-handling).
 
 ```dotenv
 GOOGLE_PLACES_LOGGING=true
 GOOGLE_PLACES_LOG_CHANNEL=stack   # optional; defaults to the app's default channel
 ```
+
+> Laravel's own HTTP client events, and tools that record them (Telescope, for example), see each
+> request as sent — a Geocoding request URL includes the key. That recording happens in your app,
+> outside this package; filter it there.
 
 ### Validation rules
 

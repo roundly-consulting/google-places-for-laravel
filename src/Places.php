@@ -39,7 +39,9 @@ use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
 use RoundlyConsulting\GooglePlaces\Support\PendingMatrix;
 use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
 use RoundlyConsulting\GooglePlaces\Support\PlacesSession;
+use RoundlyConsulting\GooglePlaces\Support\Redactor;
 use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
+use SensitiveParameter;
 
 final class Places implements PlacesClient
 {
@@ -386,12 +388,12 @@ final class Places implements PlacesClient
      *
      * @param  Closure(): Response  $request
      */
-    private function probe(string $api, string $key, Closure $request): ApiCheckResult
+    private function probe(string $api, #[SensitiveParameter] string $key, Closure $request): ApiCheckResult
     {
         try {
             $response = $request();
         } catch (ConnectionException $exception) {
-            return new ApiCheckResult($api, false, self::redact('Unreachable: '.$exception->getMessage(), $key));
+            return new ApiCheckResult($api, false, Redactor::redact('Unreachable: '.$exception->getMessage(), $key));
         }
 
         // The legacy Geocoding API answers a refused key with HTTP 200 and a body `status`
@@ -406,7 +408,7 @@ final class Places implements PlacesClient
 
         $detail = trim(($response->status().' '.($status ?? '')).' '.($message ?? ''));
 
-        return new ApiCheckResult($api, false, self::redact($detail !== '' ? $detail : 'Request rejected.', $key));
+        return new ApiCheckResult($api, false, Redactor::redact($detail !== '' ? $detail : 'Request rejected.', $key));
     }
 
     /**
@@ -418,14 +420,6 @@ final class Places implements PlacesClient
         return Http::baseUrl($this->host($service))
             ->timeout((int) config('google-places.http.timeout', 10))
             ->connectTimeout((int) config('google-places.http.connect_timeout', 5));
-    }
-
-    /**
-     * Mask every occurrence of the key, keeping its last four characters.
-     */
-    private static function redact(string $text, string $key): string
-    {
-        return str_replace($key, str_repeat('*', max(0, strlen($key) - 4)).substr($key, -4), $text);
     }
 
     /**

@@ -23,7 +23,8 @@ Initial public release.
 - Photo URLs and photo bytes (`GooglePlaces::photo()`), with the API key sent as a header and never
   exposed.
 - A `PlacesException` with typed accessors (`isDenied()`, `isRateLimited()`, `googleReason()`, …);
-  the API key never appears in messages, events, logs or cache keys.
+  the API key never appears in messages, events, logs or cache keys — every message, including a
+  connection failure's (which ends in the request URL), is redacted.
 - Optional response caching, opt-in request logging and lifecycle events
   (`PlacesResponseReceived`, `PlacesRequestFailed`).
 - `ValidPlaceId` and `ValidCoordinates` validation rules, and the `google-places:check` command to

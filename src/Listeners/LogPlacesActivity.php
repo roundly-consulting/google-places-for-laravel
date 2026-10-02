@@ -8,10 +8,12 @@ use Illuminate\Support\Facades\Log;
 use Psr\Log\LoggerInterface;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
+use RoundlyConsulting\GooglePlaces\Support\Redactor;
 
 /**
- * Opt-in request logger wired to the package's lifecycle events. The API key is
- * never present on either event, so nothing sensitive is ever written.
+ * Opt-in request logger wired to the package's lifecycle events. Neither event carries
+ * the API key, and the failure message is redacted once more on the way out, so nothing
+ * sensitive is ever written.
  *
  * @internal Wiring: the service provider subscribes it; toggle it with
  *           `google-places.logging.enabled`.
@@ -42,7 +44,7 @@ final class LogPlacesActivity
             'endpoint' => $event->endpoint,
             'http_status' => $event->httpStatus,
             'google_status' => $event->googleStatus,
-            'message' => $event->message,
+            'message' => Redactor::redact($event->message),
         ]);
     }
 

@@ -7,6 +7,7 @@ namespace RoundlyConsulting\GooglePlaces\Exceptions;
 use Exception;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
+use RoundlyConsulting\GooglePlaces\Support\Redactor;
 
 class PlacesException extends Exception
 {
@@ -36,15 +37,24 @@ class PlacesException extends Exception
      */
     private const array DENIED_STATUSES = ['PERMISSION_DENIED', 'UNAUTHENTICATED', 'REQUEST_DENIED', 'OVER_DAILY_LIMIT'];
 
+    public readonly ?string $googleErrorMessage;
+
+    /**
+     * Every message is redacted here, at the one place they all pass through: a transport
+     * failure's message ends in the request URL (the Geocoding key rides in its query
+     * string), and Google may echo a key back in an error body.
+     */
     protected function __construct(
         string $message,
         int $code = 0,
         public readonly ?string $googleStatus = null,
-        public readonly ?string $googleErrorMessage = null,
+        ?string $googleErrorMessage = null,
         public readonly ?Response $response = null,
         public readonly ?string $googleReason = null,
     ) {
-        parent::__construct($message, $code);
+        $this->googleErrorMessage = $googleErrorMessage === null ? null : Redactor::redact($googleErrorMessage);
+
+        parent::__construct(Redactor::redact($message), $code);
     }
 
     public static function fromResponse(Response $response): self
@@ -66,6 +76,10 @@ class PlacesException extends Exception
         return new self('Google Places API key is missing. Set GOOGLE_PLACES_API_KEY in your environment.');
     }
 
+    /**
+     * The transport exception is deliberately NOT chained as `previous`: its message carries
+     * the full request URL, and an error tracker would report it unredacted.
+     */
     public static function connectionFailed(ConnectionException $exception): self
     {
         return new self("Could not reach the Google Places API: {$exception->getMessage()}");
