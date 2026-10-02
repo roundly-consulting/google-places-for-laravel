@@ -41,6 +41,7 @@ use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
 use RoundlyConsulting\GooglePlaces\Support\PlacesSession;
 use RoundlyConsulting\GooglePlaces\Support\Redactor;
 use RoundlyConsulting\GooglePlaces\Support\SearchPaginator;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 use SensitiveParameter;
 
 final class Places implements PlacesClient
@@ -657,7 +658,7 @@ final class Places implements PlacesClient
      */
     private function cached(string $endpoint, array $params, Closure $fetch, Closure $decode): mixed
     {
-        if (! (bool) config('google-places.cache.enabled', false)) {
+        if (! Config::boolean('google-places.cache.enabled')) {
             return $decode($fetch());
         }
 

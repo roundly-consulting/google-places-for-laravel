@@ -75,7 +75,8 @@ GOOGLE_PLACES_API_KEY=your-google-maps-api-key
 ```
 
 The package works with zero extra configuration once the key is set. Every value lives in
-`config/google-places.php`:
+`config/google-places.php`. A `bool` switch accepts `true`/`false`, `1`/`0`, `on`/`off` or
+`yes`/`no`, from `.env` or the published file; an unrecognised value falls back to the default:
 
 | Key | Type | Default | Env | Purpose |
 |---|---|---|---|---|

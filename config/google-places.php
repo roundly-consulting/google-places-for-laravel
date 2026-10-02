@@ -82,7 +82,7 @@ return [
     */
 
     'cache' => [
-        'enabled' => (bool) env('GOOGLE_PLACES_CACHE', false),
+        'enabled' => env('GOOGLE_PLACES_CACHE', false),
         'store' => env('GOOGLE_PLACES_CACHE_STORE'),
         'ttl' => (int) env('GOOGLE_PLACES_CACHE_TTL', 86400),
     ],
@@ -116,7 +116,7 @@ return [
     */
 
     'logging' => [
-        'enabled' => (bool) env('GOOGLE_PLACES_LOGGING', false),
+        'enabled' => env('GOOGLE_PLACES_LOGGING', false),
         'channel' => env('GOOGLE_PLACES_LOG_CHANNEL'),
     ],
 
@@ -141,28 +141,28 @@ return [
         'owner' => env('GOOGLE_PLACES_RATELIMIT_OWNER', 'app'),
 
         'places' => [
-            'enabled' => (bool) env('GOOGLE_PLACES_PLACES_RATELIMIT_ENABLED', true),
+            'enabled' => env('GOOGLE_PLACES_PLACES_RATELIMIT_ENABLED', true),
             'limit' => (int) env('GOOGLE_PLACES_PLACES_RATELIMIT', 600),
             'per' => env('GOOGLE_PLACES_PLACES_RATELIMIT_PER', 'minute'),
-            'adaptive' => (bool) env('GOOGLE_PLACES_PLACES_RATELIMIT_ADAPTIVE', true),
+            'adaptive' => env('GOOGLE_PLACES_PLACES_RATELIMIT_ADAPTIVE', true),
             'max_wait' => env('GOOGLE_PLACES_PLACES_RATELIMIT_MAX_WAIT'),
             'jitter' => env('GOOGLE_PLACES_PLACES_RATELIMIT_JITTER'),
         ],
 
         'routes' => [
-            'enabled' => (bool) env('GOOGLE_PLACES_ROUTES_RATELIMIT_ENABLED', true),
+            'enabled' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_ENABLED', true),
             'limit' => (int) env('GOOGLE_PLACES_ROUTES_RATELIMIT', 600),
             'per' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_PER', 'minute'),
-            'adaptive' => (bool) env('GOOGLE_PLACES_ROUTES_RATELIMIT_ADAPTIVE', true),
+            'adaptive' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_ADAPTIVE', true),
             'max_wait' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_MAX_WAIT'),
             'jitter' => env('GOOGLE_PLACES_ROUTES_RATELIMIT_JITTER'),
         ],
 
         'geocoding' => [
-            'enabled' => (bool) env('GOOGLE_PLACES_GEOCODING_RATELIMIT_ENABLED', true),
+            'enabled' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_ENABLED', true),
             'limit' => (int) env('GOOGLE_PLACES_GEOCODING_RATELIMIT', 600),
             'per' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_PER', 'minute'),
-            'adaptive' => (bool) env('GOOGLE_PLACES_GEOCODING_RATELIMIT_ADAPTIVE', true),
+            'adaptive' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_ADAPTIVE', true),
             'max_wait' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_MAX_WAIT'),
             'jitter' => env('GOOGLE_PLACES_GEOCODING_RATELIMIT_JITTER'),
         ],

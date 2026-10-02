@@ -12,6 +12,7 @@ use RoundlyConsulting\HttpClientRateLimits\Exceptions\RateLimitExceededException
 use RoundlyConsulting\HttpClientRateLimits\Facades\RateLimits;
 use RoundlyConsulting\HttpClientRateLimits\Limit;
 use RoundlyConsulting\HttpClientRateLimits\RateLimit;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 /**
  * Client-side outbound rate limiting for the direct Google Places client.
@@ -38,7 +39,7 @@ trait InteractsWithRateLimits
             default => config('google-places.rate_limits.places', []),
         };
 
-        if (($config['enabled'] ?? true) === false) {
+        if (! Config::for($config)->boolean('enabled', true)) {
             return null;
         }
 
@@ -50,7 +51,7 @@ trait InteractsWithRateLimits
             timespan: $timespan,
         ))->by("google-places:{$surface}:{$owner}");
 
-        if (($config['adaptive'] ?? true) === true) {
+        if (Config::for($config)->boolean('adaptive', true)) {
             $rateLimit->adaptive();
         }
 

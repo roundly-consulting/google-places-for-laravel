@@ -9,6 +9,7 @@ use Psr\Log\LoggerInterface;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 use RoundlyConsulting\GooglePlaces\Support\Redactor;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 /**
  * Opt-in request logger wired to the package's lifecycle events. Neither event carries
@@ -50,7 +51,7 @@ final class LogPlacesActivity
 
     private function enabled(): bool
     {
-        return (bool) config('google-places.logging.enabled', false);
+        return Config::boolean('google-places.logging.enabled');
     }
 
     private function log(): LoggerInterface
