@@ -87,3 +87,11 @@ it('throws when forward geocoding is denied', function () {
 
     places()->geocodeAddress('boom');
 })->throws(PlacesException::class);
+
+it('sends a coordinate near the equator as a plain decimal', function () {
+    Http::fake(['maps.googleapis.com/maps/api/geocode/json*' => Http::response(['status' => 'ZERO_RESULTS', 'results' => []])]);
+
+    places()->geocode(0.00001, 17.0);
+
+    Http::assertSent(fn (Request $request): bool => $request['latlng'] === '0.00001,17');
+});
