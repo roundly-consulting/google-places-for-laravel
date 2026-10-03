@@ -54,10 +54,14 @@ final class LogPlacesActivity
         return Config::boolean('google-places.logging.enabled');
     }
 
+    /**
+     * The `logging.channel` logger, or the default channel when it is unset. A
+     * blank or non-string channel throws instead of quietly logging elsewhere.
+     */
     private function log(): LoggerInterface
     {
-        $channel = config('google-places.logging.channel');
-
-        return Log::channel(is_string($channel) && $channel !== '' ? $channel : null);
+        return Log::channel(config('google-places.logging.channel') === null
+            ? null
+            : Config::requireString('google-places.logging.channel'));
     }
 }

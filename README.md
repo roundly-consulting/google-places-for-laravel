@@ -75,9 +75,19 @@ GOOGLE_PLACES_API_KEY=your-google-maps-api-key
 ```
 
 The package works with zero extra configuration once the key is set. Every value lives in
-`config/google-places.php`. A `bool` switch accepts `true`/`false`, `1`/`0`, `on`/`off` or
-`yes`/`no`, from `.env` or the published file; any other value throws
-`InvalidConfigurationException` naming the key:
+`config/google-places.php` and is read strictly: only an unset (`null`) key takes its default,
+and anything invalid throws `InvalidConfigurationException` naming the key, never a silent
+fallback.
+
+- A `bool` switch accepts `true`/`false`, `1`/`0`, `on`/`off` or `yes`/`no`, from `.env` or the
+  published file.
+- An `int` takes an integer or an integer string (`'30'`). `'five'`, `'5.5'`, `'5s'`, a blank env
+  or a value out of range throws. Timeouts, `cache.ttl`, `pagination.max_pages` and the
+  rate-limit `limit` must be at least 1. Retries, `retry_delay`, `max_wait` and `jitter` must be
+  at least 0.
+- `rate_limits.{surface}.per` must be exactly `second`, `minute`, `hour` or `day`.
+- A string (`hosts.*`, `field_masks.*`, `cache.store`, `logging.channel`, `rate_limits.owner`)
+  must be non-empty. To use the default store or channel, leave it unset rather than blank.
 
 | Key | Type | Default | Env | Purpose |
 |---|---|---|---|---|
@@ -89,23 +99,23 @@ The package works with zero extra configuration once the key is set. Every value
 | `field_masks.autocomplete` | `string` | see config | — | `X-Goog-FieldMask` for autocomplete. |
 | `field_masks.search` | `string` | see config | — | `X-Goog-FieldMask` for text/nearby search. |
 | `field_masks.routes` | `string` | see config | — | `X-Goog-FieldMask` for the route matrix. |
-| `http.timeout` | `int` | `10` | `GOOGLE_PLACES_TIMEOUT` | Request timeout (seconds). |
-| `http.connect_timeout` | `int` | `5` | `GOOGLE_PLACES_CONNECT_TIMEOUT` | Connection timeout (seconds). |
-| `http.retries` | `int` | `2` | `GOOGLE_PLACES_RETRIES` | Retries on connection failure. |
-| `http.retry_delay` | `int` | `200` | `GOOGLE_PLACES_RETRY_DELAY` | Delay between retries (ms). |
+| `http.timeout` | `int` (≥ 1) | `10` | `GOOGLE_PLACES_TIMEOUT` | Request timeout (seconds). |
+| `http.connect_timeout` | `int` (≥ 1) | `5` | `GOOGLE_PLACES_CONNECT_TIMEOUT` | Connection timeout (seconds). |
+| `http.retries` | `int` (≥ 0) | `2` | `GOOGLE_PLACES_RETRIES` | Retries on connection failure. |
+| `http.retry_delay` | `int` (≥ 0) | `200` | `GOOGLE_PLACES_RETRY_DELAY` | Delay between retries (ms). |
 | `cache.enabled` | `bool` | `false` | `GOOGLE_PLACES_CACHE` | Cache idempotent lookups (details/geocode/distance/search/matrix). |
 | `cache.store` | `?string` | `null` | `GOOGLE_PLACES_CACHE_STORE` | Cache store (null = default). |
-| `cache.ttl` | `int` | `86400` | `GOOGLE_PLACES_CACHE_TTL` | Cache TTL (seconds). |
-| `pagination.max_pages` | `int` | `5` | `GOOGLE_PLACES_MAX_PAGES` | Safety cap for the paginated search helpers; a warning is logged when hit. |
+| `cache.ttl` | `int` (≥ 1) | `86400` | `GOOGLE_PLACES_CACHE_TTL` | Cache TTL (seconds). |
+| `pagination.max_pages` | `int` (≥ 1) | `5` | `GOOGLE_PLACES_MAX_PAGES` | Safety cap for the paginated search helpers; a warning is logged when hit. |
 | `logging.enabled` | `bool` | `false` | `GOOGLE_PLACES_LOGGING` | Log every request (endpoint, status, duration). The API key is never logged. |
 | `logging.channel` | `?string` | `null` | `GOOGLE_PLACES_LOG_CHANNEL` | Log channel to write to (null = default channel). |
 | `rate_limits.owner` | `string` | `app` | `GOOGLE_PLACES_RATELIMIT_OWNER` | Bucket owner, shared across surfaces (`google-places:{surface}:{owner}`). |
 | `rate_limits.{surface}.enabled` | `bool` | `true` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_ENABLED` | Throttle this surface (`places`/`routes`/`geocoding`); `false` = unthrottled. |
-| `rate_limits.{surface}.limit` | `int` | `600` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT` | Max requests per window. |
+| `rate_limits.{surface}.limit` | `int` (≥ 1) | `600` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT` | Max requests per window. |
 | `rate_limits.{surface}.per` | `string` | `minute` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_PER` | Window: `second`, `minute`, `hour`, `day`. |
 | `rate_limits.{surface}.adaptive` | `bool` | `true` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_ADAPTIVE` | Self-tune from a 429 `Retry-After`. |
-| `rate_limits.{surface}.max_wait` | `?int` | `null` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_MAX_WAIT` | Fail fast (ms) instead of pacing; `null` = pace. |
-| `rate_limits.{surface}.jitter` | `?int` | `null` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_JITTER` | Random spread (ms) added to a defer. |
+| `rate_limits.{surface}.max_wait` | `?int` (≥ 0) | `null` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_MAX_WAIT` | Fail fast (ms) instead of pacing; `null` = pace. |
+| `rate_limits.{surface}.jitter` | `?int` (≥ 0) | `null` | `GOOGLE_PLACES_{SURFACE}_RATELIMIT_JITTER` | Random spread (ms) added to a defer. |
 
 > **Field masks:** the Places API (New) and Routes API require an `X-Goog-FieldMask` header
 > naming the fields to return. The defaults are conservative; trim them in config so you pay

@@ -125,7 +125,7 @@ final class Places implements PlacesClient
             'details',
             $this->detailsKey($query),
             function () use ($query): ?array {
-                $mask = $query->fieldMask() ?? (string) config('google-places.field_masks.details');
+                $mask = $query->fieldMask() ?? Config::requireString('google-places.field_masks.details');
 
                 $response = $this->send('details', fn (): Response => $this->placesClient($mask)
                     ->get('/places/'.$query->place, $query->toRequest()));
@@ -414,8 +414,8 @@ final class Places implements PlacesClient
     private function probeClient(string $service): PendingRequest
     {
         return Http::baseUrl($this->host($service))
-            ->timeout((int) config('google-places.http.timeout', 10))
-            ->connectTimeout((int) config('google-places.http.connect_timeout', 5));
+            ->timeout(self::timeout())
+            ->connectTimeout(self::connectTimeout());
     }
 
     /**
@@ -501,9 +501,13 @@ final class Places implements PlacesClient
         return new SearchPage($places, is_string($token) ? $token : null);
     }
 
+    /**
+     * `pagination.max_pages`, at least 1: a junk or zero cap throws rather than
+     * being clamped to a single page.
+     */
     private function maxPages(): int
     {
-        return max(1, (int) config('google-places.pagination.max_pages', 5));
+        return Config::integer('google-places.pagination.max_pages', 5, min: 1);
     }
 
     /**
@@ -549,14 +553,32 @@ final class Places implements PlacesClient
     private function baseClient(string $baseUrl): PendingRequest
     {
         return Http::baseUrl($baseUrl)
-            ->timeout((int) config('google-places.http.timeout', 10))
-            ->connectTimeout((int) config('google-places.http.connect_timeout', 5))
+            ->timeout(self::timeout())
+            ->connectTimeout(self::connectTimeout())
             ->retry(
-                (int) config('google-places.http.retries', 2) + 1,
-                (int) config('google-places.http.retry_delay', 200),
+                Config::integer('google-places.http.retries', 2, min: 0) + 1,
+                Config::integer('google-places.http.retry_delay', 200, min: 0),
                 static fn (mixed $exception): bool => $exception instanceof ConnectionException,
                 throw: false,
             );
+    }
+
+    /**
+     * `http.timeout` in seconds, at least 1: the whole point is that a slow Google
+     * response can never hang the host request, so `0` (no timeout) and junk such
+     * as `five` (which `(int)` turned into 0) throw.
+     */
+    private static function timeout(): int
+    {
+        return Config::integer('google-places.http.timeout', 10, min: 1);
+    }
+
+    /**
+     * `http.connect_timeout` in seconds, at least 1, for the same reason.
+     */
+    private static function connectTimeout(): int
+    {
+        return Config::integer('google-places.http.connect_timeout', 5, min: 1);
     }
 
     /**
@@ -679,7 +701,7 @@ final class Places implements PlacesClient
 
         $payload = $fetch();
 
-        $store->put($key, ['payload' => $payload], (int) config('google-places.cache.ttl', 86400));
+        $store->put($key, ['payload' => $payload], Config::integer('google-places.cache.ttl', 86400, min: 1));
 
         return $decode($payload);
     }
@@ -691,16 +713,20 @@ final class Places implements PlacesClient
     {
         return [
             'place' => $query->place,
-            'fields' => $query->fieldMask() ?? (string) config('google-places.field_masks.details'),
+            'fields' => $query->fieldMask() ?? Config::requireString('google-places.field_masks.details'),
             'request' => $query->toRequest(),
         ];
     }
 
+    /**
+     * `cache.store`, or null (the default store) when unset. A blank or non-string
+     * value throws instead of quietly using the default store.
+     */
     private function cacheStore(): ?string
     {
-        $store = config('google-places.cache.store');
-
-        return is_string($store) ? $store : null;
+        return config('google-places.cache.store') === null
+            ? null
+            : Config::requireString('google-places.cache.store');
     }
 
     /**
@@ -715,10 +741,10 @@ final class Places implements PlacesClient
      */
     private function mask(string $endpoint): string
     {
-        return (string) match ($endpoint) {
-            'autocomplete' => config('google-places.field_masks.autocomplete'),
-            'search' => config('google-places.field_masks.search'),
-            'routes' => config('google-places.field_masks.routes'),
+        return match ($endpoint) {
+            'autocomplete' => Config::requireString('google-places.field_masks.autocomplete'),
+            'search' => Config::requireString('google-places.field_masks.search'),
+            'routes' => Config::requireString('google-places.field_masks.routes'),
             default => throw new InvalidArgumentException("Unknown field mask endpoint [{$endpoint}]."),
         };
     }
@@ -731,13 +757,13 @@ final class Places implements PlacesClient
     private function host(string $service): string
     {
         $host = match ($service) {
-            'places' => config('google-places.hosts.places'),
-            'routes' => config('google-places.hosts.routes'),
-            'geocoding' => config('google-places.hosts.geocoding'),
+            'places' => Config::requireString('google-places.hosts.places'),
+            'routes' => Config::requireString('google-places.hosts.routes'),
+            'geocoding' => Config::requireString('google-places.hosts.geocoding'),
             default => throw new InvalidArgumentException("Unknown Google service [{$service}]."),
         };
 
-        return is_string($host) ? rtrim($host, '/') : '';
+        return rtrim($host, '/');
     }
 
     private function key(): string

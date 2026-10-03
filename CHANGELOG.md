@@ -57,3 +57,9 @@ Initial public release.
   http-client-rate-limits-for-laravel.
 - A boolean switch that isn't `true`/`false`/`1`/`0`/`on`/`off`/`yes`/`no` now throws
   `InvalidConfigurationException` naming its full key, instead of falling back to the default.
+- Every other setting is read strictly too, so an env typo no longer turns into a silent default:
+  `(int)` turned `GOOGLE_PLACES_TIMEOUT=five` into no timeout and a junk `max_pages` into one
+  page, a `per` typo became a minute, a junk `max_wait` / `jitter` was dropped and a blank or
+  non-string host, field mask, cache store or log channel was swapped for a default. Integers
+  must be integers in range (timeouts, `cache.ttl`, `max_pages` and `limit` at least 1), `per`
+  one of the four windows and strings non-empty; an unset key keeps its default.

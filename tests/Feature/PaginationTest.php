@@ -9,6 +9,7 @@ use Illuminate\Support\LazyCollection;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Location;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\NearbySearchQuery;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\Place;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 beforeEach(fn () => Http::preventStrayRequests());
 
@@ -88,6 +89,37 @@ it('stops at the configured max-pages cap and logs a warning', function () {
     Http::assertSentCount(2);
 
     Log::shouldHaveReceived('warning')->withArgs(fn (string $message): bool => str_contains($message, 'max-pages'))->once();
+});
+
+it('refuses a junk or zero max-pages cap instead of clamping it to one (strict config)', function (mixed $value, string $expected) {
+    config()->set('google-places.pagination.max_pages', $value);
+
+    Http::fake([
+        'places.googleapis.com/v1/places:searchText' => Http::sequence()
+            ->push(pageResponse('Page 1', 'token-2'))
+            ->push(pageResponse('Page 2', null)),
+    ]);
+
+    expect(fn () => places()->textSearchPaginated('museums')->all())->toThrow(
+        InvalidConfigurationException::class,
+        "Configuration value [google-places.pagination.max_pages] must be {$expected}",
+    );
+})->with([
+    'word' => ['five', 'an integer'],
+    'zero' => [0, 'at least 1'],
+    'negative env' => ['-2', 'at least 1'],
+]);
+
+it('reads an env-string max-pages cap (strict config)', function () {
+    config()->set('google-places.pagination.max_pages', '1');
+
+    Http::fake([
+        'places.googleapis.com/v1/places:searchText' => Http::sequence()
+            ->push(pageResponse('Page 1', 'token-2'))
+            ->push(pageResponse('Page 2', null)),
+    ]);
+
+    expect(places()->textSearchPaginated('museums')->all())->toHaveCount(1);
 });
 
 it('returns a single page for nearby search (new api does not paginate)', function () {

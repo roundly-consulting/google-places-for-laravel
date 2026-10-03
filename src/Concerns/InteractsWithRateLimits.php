@@ -29,47 +29,46 @@ trait InteractsWithRateLimits
     /**
      * Build the client-side rate limiter for an API surface from its config, or
      * null when the host has disabled throttling for it.
+     *
+     * Every key is read by its full name through package-toolkit's strict readers,
+     * so a bad value throws InvalidConfigurationException naming e.g.
+     * `google-places.rate_limits.places.limit`. Only an unset (null) key takes its
+     * default: `(int) 'lots'` used to be 0, a junk `max_wait` / `jitter` was
+     * dropped and a `per` typo quietly became a minute.
      */
     protected function rateLimiter(string $surface): ?RateLimit
     {
-        // Pin the surface to the section actually read, so the switch reads below
-        // can name their full key.
+        // Pin the surface to the section actually read, so every key below is a
+        // shipped one. The keys stay spelled out (`rate_limits.{$surface}.limit`) so the
+        // config contract can match each against the shipped file.
         $surface = match ($surface) {
             'routes', 'geocoding' => $surface,
             default => 'places',
         };
 
-        /** @var array<string, mixed> $config */
-        $config = match ($surface) {
-            'routes' => config('google-places.rate_limits.routes', []),
-            'geocoding' => config('google-places.rate_limits.geocoding', []),
-            default => config('google-places.rate_limits.places', []),
-        };
-
-        // By full key rather than `Config::for($config)`, so an unreadable switch
-        // throws naming `google-places.rate_limits.places.enabled`, not a bare `[enabled]`.
         if (! Config::boolean("google-places.rate_limits.{$surface}.enabled", true)) {
             return null;
         }
 
-        $timespan = Timespan::tryFrom((string) ($config['per'] ?? 'minute')) ?? Timespan::Minute;
-        $owner = (string) config('google-places.rate_limits.owner', 'app');
+        $owner = config('google-places.rate_limits.owner') === null
+            ? 'app'
+            : Config::requireString('google-places.rate_limits.owner');
 
         $rateLimit = RateLimits::make(new Limit(
-            maxAttempts: (int) ($config['limit'] ?? 600),
-            timespan: $timespan,
+            maxAttempts: Config::integer("google-places.rate_limits.{$surface}.limit", 600, min: 1),
+            timespan: Config::enum("google-places.rate_limits.{$surface}.per", Timespan::class, Timespan::Minute),
         ))->by("google-places:{$surface}:{$owner}");
 
         if (Config::boolean("google-places.rate_limits.{$surface}.adaptive", true)) {
             $rateLimit->adaptive();
         }
 
-        if (isset($config['max_wait']) && is_numeric($config['max_wait'])) {
-            $rateLimit->maxWait((int) $config['max_wait']);
+        if (config("google-places.rate_limits.{$surface}.max_wait") !== null) {
+            $rateLimit->maxWait(Config::integer("google-places.rate_limits.{$surface}.max_wait", 0, min: 0));
         }
 
-        if (isset($config['jitter']) && is_numeric($config['jitter'])) {
-            $rateLimit->jitter((int) $config['jitter']);
+        if (config("google-places.rate_limits.{$surface}.jitter") !== null) {
+            $rateLimit->jitter(Config::integer("google-places.rate_limits.{$surface}.jitter", 0, min: 0));
         }
 
         return $rateLimit;
