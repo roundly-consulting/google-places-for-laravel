@@ -13,6 +13,7 @@ use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 use RoundlyConsulting\GooglePlaces\Geolocation\GooglePlacesProvider;
 use RoundlyConsulting\GooglePlaces\Listeners\LogPlacesActivity;
+use RoundlyConsulting\GooglePlaces\Support\ConfigValue;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 use RoundlyConsulting\PackageToolkit\Support\Config;
@@ -31,7 +32,7 @@ final class GooglePlacesServiceProvider extends PackageServiceProvider
                 $key = config('google-places.key');
 
                 return [
-                    'API key' => is_string($key) && $key !== '' ? 'SET' : 'MISSING',
+                    'API key' => is_string($key) && ConfigValue::isSet($key) ? 'SET' : 'MISSING',
                     'Cache' => Config::boolean('google-places.cache.enabled') ? 'ENABLED' : 'OFF',
                     'Logging' => Config::boolean('google-places.logging.enabled') ? 'ENABLED' : 'OFF',
                 ];

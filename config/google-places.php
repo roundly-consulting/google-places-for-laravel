@@ -24,8 +24,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Each Google product lives on its own host. Override these only when you
-    | proxy Google through your own gateway. Hosts and the field masks below
-    | must be non-empty strings; a blank value throws.
+    | proxy Google through your own gateway. A host that is not set (unset,
+    | null or blank, e.g. GOOGLE_PLACES_HOST=) is Google's own, as below. Field
+    | masks have no fallback: a blank one throws "required but missing".
     |
     */
 
@@ -62,8 +63,9 @@ return [
     | hang the host request. Connection failures (timeouts, DNS) are retried;
     | Google business errors are surfaced as a PlacesException. Timeouts are
     | whole seconds of at least 1; retries and retry_delay (ms) at least 0.
-    | A value that isn't an integer ("five", "5s", "") or is out of range
-    | throws an InvalidConfigurationException naming the key.
+    | A value that isn't an integer ("five", "5s") or is out of range throws
+    | an InvalidConfigurationException naming the key; a blank one is not set
+    | and takes the default.
     |
     */
 
@@ -82,7 +84,7 @@ return [
     | Opt-in caching for the idempotent lookups (details, geocode, distance,
     | text/nearby search). Autocomplete is never cached. The API key never
     | appears in a cache key. `ttl` is in seconds, at least 1; `store` is a
-    | cache store name, or null for the default store (a blank value throws).
+    | cache store name, or null / blank for the default store.
     |
     */
 
@@ -101,7 +103,8 @@ return [
     | `nextPageToken`. `max_pages` is a safety cap so a runaway result set can
     | never make an unbounded number of billed requests; when the cap is hit
     | with more pages still available, a warning is logged and paging stops.
-    | It must be an integer of at least 1; anything else throws.
+    | It must be an integer of at least 1; anything else throws (a blank value
+    | is not set and takes the default).
     |
     */
 
@@ -116,8 +119,8 @@ return [
     |
     | Opt-in logging of every call (endpoint, HTTP status, Google status, and
     | duration) built on the PlacesResponseReceived / PlacesRequestFailed
-    | events. The API key is never logged. Leave `channel` null (unset) to use
-    | the application's default log channel; a blank value throws.
+    | events. The API key is never logged. Leave `channel` unset, null or blank
+    | to use the application's default log channel.
     |
     */
 
@@ -141,7 +144,8 @@ return [
     | one key can each carry their own budget. Every key is read strictly:
     | `limit` is an integer of at least 1, `max_wait` / `jitter` integers of at
     | least 0 (or unset), `per` exactly second|minute|hour|day and `owner` a
-    | non-empty string; anything else throws, naming the key.
+    | string; anything else throws, naming the key. A blank value is not set
+    | and takes the default (a blank max_wait / jitter is unset).
     |
     */
 

@@ -36,6 +36,7 @@ use RoundlyConsulting\GooglePlaces\DataTransferObjects\TextSearchQuery;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
 use RoundlyConsulting\GooglePlaces\Exceptions\PlacesException;
+use RoundlyConsulting\GooglePlaces\Support\ConfigValue;
 use RoundlyConsulting\GooglePlaces\Support\PendingMatrix;
 use RoundlyConsulting\GooglePlaces\Support\PendingPhoto;
 use RoundlyConsulting\GooglePlaces\Support\PlacesSession;
@@ -52,6 +53,15 @@ final class Places implements PlacesClient
      * The waypoint the Routes probe asks about: (0, 0) — any answer proves the API is on.
      */
     private const array NULL_ISLAND = ['waypoint' => ['location' => ['latLng' => ['latitude' => 0, 'longitude' => 0]]]];
+
+    /**
+     * Google's hosts, as shipped in `hosts.*`: what a host that is not set resolves to.
+     */
+    private const array DEFAULT_HOSTS = [
+        'places' => 'https://places.googleapis.com/v1',
+        'routes' => 'https://routes.googleapis.com',
+        'geocoding' => 'https://maps.googleapis.com/maps/api',
+    ];
 
     private float $startedAt = 0.0;
 
@@ -719,14 +729,14 @@ final class Places implements PlacesClient
     }
 
     /**
-     * `cache.store`, or null (the default store) when unset. A blank or non-string
-     * value throws instead of quietly using the default store.
+     * `cache.store`, or null (the default store) when not set — absent, null or blank.
+     * A non-string value throws instead of quietly using the default store.
      */
     private function cacheStore(): ?string
     {
-        return config('google-places.cache.store') === null
-            ? null
-            : Config::requireString('google-places.cache.store');
+        return ConfigValue::isSet(config('google-places.cache.store'))
+            ? Config::requireString('google-places.cache.store')
+            : null;
     }
 
     /**
@@ -752,14 +762,22 @@ final class Places implements PlacesClient
     /**
      * Literal keys, for the same reason as {@see self::mask()}. The three hosts mirror
      * Google's three products; an unknown service used to fall through to `''`, which
-     * silently sent the request to the app's own origin.
+     * silently sent the request to the app's own origin. A host that is not set — absent,
+     * null or blank (a host's `GOOGLE_PLACES_HOST=`) — is Google's own, as shipped; a
+     * non-string one throws.
      */
     private function host(string $service): string
     {
         $host = match ($service) {
-            'places' => Config::requireString('google-places.hosts.places'),
-            'routes' => Config::requireString('google-places.hosts.routes'),
-            'geocoding' => Config::requireString('google-places.hosts.geocoding'),
+            'places' => ConfigValue::isSet(config('google-places.hosts.places'))
+                ? Config::requireString('google-places.hosts.places')
+                : self::DEFAULT_HOSTS['places'],
+            'routes' => ConfigValue::isSet(config('google-places.hosts.routes'))
+                ? Config::requireString('google-places.hosts.routes')
+                : self::DEFAULT_HOSTS['routes'],
+            'geocoding' => ConfigValue::isSet(config('google-places.hosts.geocoding'))
+                ? Config::requireString('google-places.hosts.geocoding')
+                : self::DEFAULT_HOSTS['geocoding'],
             default => throw new InvalidArgumentException("Unknown Google service [{$service}]."),
         };
 
@@ -770,7 +788,7 @@ final class Places implements PlacesClient
     {
         $key = config('google-places.key');
 
-        if (! is_string($key) || $key === '') {
+        if (! is_string($key) || ! ConfigValue::isSet($key)) {
             throw PlacesException::missingApiKey();
         }
 

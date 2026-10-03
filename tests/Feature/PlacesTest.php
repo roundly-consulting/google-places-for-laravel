@@ -363,11 +363,13 @@ it('throws when the routes request fails', function () {
     places()->distance(new DistanceQuery(new Location(1, 2), new Location(3, 4)));
 })->throws(PlacesException::class);
 
-it('throws a missing-key exception before making a request', function () {
-    config()->set('google-places.key', null);
+it('throws a missing-key exception before making a request', function (?string $key) {
+    // Blank means not set: `GOOGLE_PLACES_API_KEY=` (or whitespace) is a missing key too.
+    config()->set('google-places.key', $key);
 
     places()->details(new DetailsQuery('place-1'));
-})->throws(PlacesException::class, 'Google Places API key is missing');
+})->with(['null' => [null], 'empty env' => [''], 'whitespace' => ['  ']])
+    ->throws(PlacesException::class, 'Google Places API key is missing');
 
 it('applies a location bias on autocomplete', function () {
     Http::fake([

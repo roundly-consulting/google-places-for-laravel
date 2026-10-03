@@ -7,6 +7,7 @@ namespace RoundlyConsulting\GooglePlaces\Commands;
 use Illuminate\Console\Command;
 use RoundlyConsulting\GooglePlaces\Contracts\PlacesClient;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\ApiCheckResult;
+use RoundlyConsulting\GooglePlaces\Support\ConfigValue;
 use RoundlyConsulting\GooglePlaces\Support\Redactor;
 
 /**
@@ -23,7 +24,7 @@ final class CheckCommand extends Command
     {
         $key = config('google-places.key');
 
-        if (! is_string($key) || $key === '') {
+        if (! is_string($key) || ! ConfigValue::isSet($key)) {
             $this->error('No API key configured. Set GOOGLE_PLACES_API_KEY in your environment.');
 
             return self::FAILURE;

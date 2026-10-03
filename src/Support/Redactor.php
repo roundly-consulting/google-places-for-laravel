@@ -68,6 +68,6 @@ final class Redactor
 
         $key = $container->make('config')->get('google-places.key');
 
-        return is_string($key) && $key !== '' ? $key : null;
+        return is_string($key) && ConfigValue::isSet($key) ? $key : null;
     }
 }

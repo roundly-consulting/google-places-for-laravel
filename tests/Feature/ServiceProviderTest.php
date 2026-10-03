@@ -22,8 +22,8 @@ it('contributes a section to the about command', function (): void {
         ->assertSuccessful();
 });
 
-it('reports a missing api key and enabled cache/logging to the about command', function (): void {
-    config()->set('google-places.key', null);
+it('reports a missing api key and enabled cache/logging to the about command', function (?string $key): void {
+    config()->set('google-places.key', $key);
     config()->set('google-places.cache.enabled', true);
     config()->set('google-places.logging.enabled', true);
 
@@ -31,4 +31,4 @@ it('reports a missing api key and enabled cache/logging to the about command', f
         ->expectsOutputToContain('MISSING')
         ->expectsOutputToContain('ENABLED')
         ->assertSuccessful();
-});
+})->with(['null' => [null], 'empty env' => [''], 'whitespace' => ['  ']]);

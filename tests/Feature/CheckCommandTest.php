@@ -63,13 +63,13 @@ it('reports an unreachable api', function () {
         ->assertExitCode(1);
 });
 
-it('fails when no api key is configured', function () {
-    config()->set('google-places.key', null);
+it('fails when no api key is configured', function (?string $key) {
+    config()->set('google-places.key', $key);
 
     $this->artisan('google-places:check')
         ->expectsOutputToContain('No API key configured')
         ->assertExitCode(1);
-});
+})->with(['null' => [null], 'empty env' => [''], 'whitespace' => ['  ']]);
 
 it('fails the geocoding probe when Google answers 200 with REQUEST_DENIED', function () {
     // Recorded live: the legacy Geocoding API answers an invalid key with HTTP 200 and

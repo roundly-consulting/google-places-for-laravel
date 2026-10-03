@@ -14,6 +14,13 @@ it('masks the configured key wherever it appears, raw or url-encoded', function 
         ->and(substr_count($text, '=99'))->toBe(3);
 });
 
+it('treats a blank configured key as not set, leaving the text alone', function (string $blank) {
+    // A whitespace-only key used to be "set": every run of spaces in a message was masked.
+    config()->set('google-places.key', $blank);
+
+    expect(Redactor::redact('a  b   c'))->toBe('a  b   c');
+})->with(['empty env' => [''], 'whitespace' => ['  ']]);
+
 it('masks every credential query parameter whatever its value', function () {
     expect(Redactor::redact('GET https://x.test/a?key=OtherKey12345&address=Main+St&token=tok_abcdefgh9&signature=s', key: 'unused-key'))
         ->toBe('GET https://x.test/a?key=*********2345&address=Main+St&token=*********fgh9&signature=*');

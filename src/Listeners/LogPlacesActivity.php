@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Psr\Log\LoggerInterface;
 use RoundlyConsulting\GooglePlaces\Events\PlacesRequestFailed;
 use RoundlyConsulting\GooglePlaces\Events\PlacesResponseReceived;
+use RoundlyConsulting\GooglePlaces\Support\ConfigValue;
 use RoundlyConsulting\GooglePlaces\Support\Redactor;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 
@@ -55,13 +56,14 @@ final class LogPlacesActivity
     }
 
     /**
-     * The `logging.channel` logger, or the default channel when it is unset. A
-     * blank or non-string channel throws instead of quietly logging elsewhere.
+     * The `logging.channel` logger, or the default channel when it is not set —
+     * absent, null or blank. A non-string channel throws instead of quietly logging
+     * elsewhere.
      */
     private function log(): LoggerInterface
     {
-        return Log::channel(config('google-places.logging.channel') === null
-            ? null
-            : Config::requireString('google-places.logging.channel'));
+        return Log::channel(ConfigValue::isSet(config('google-places.logging.channel'))
+            ? Config::requireString('google-places.logging.channel')
+            : null);
     }
 }

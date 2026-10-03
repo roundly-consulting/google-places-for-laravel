@@ -11,9 +11,10 @@ use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 /**
  * Owner rule: a typo in a host's config or env fails loudly and never falls back silently.
- * Every number is an int or a canonical integer string, every string setting a non-empty
- * string, and the rate-limit window one of the four Timespans. Only an unset (null) key
- * takes its default.
+ * Every number is an int or a canonical integer string, every string setting a string, and
+ * the rate-limit window one of the four Timespans. Blank means not set: an absent key, null
+ * and a blank value (a host's `KEY=`, empty or whitespace only) all take the default — or,
+ * for a field mask, which has none, throw "required but missing".
  *
  * @return array<string, mixed>
  */
@@ -61,9 +62,20 @@ it('refuses a junk or out-of-range http number instead of casting it (strict con
     'connect timeout zero' => ['http.connect_timeout', 0, 'at least 1'],
     'retries word' => ['http.retries', 'two', 'an integer'],
     'retries negative' => ['http.retries', -1, 'at least 0'],
-    'retry delay empty env' => ['http.retry_delay', '', 'an integer'],
     'retry delay negative' => ['http.retry_delay', '-5', 'at least 0'],
 ]);
+
+it('reads a blank number as not set, so its default applies (strict config)', function (string $blank) {
+    foreach (['http.timeout', 'http.connect_timeout', 'http.retries', 'http.retry_delay', 'cache.ttl', 'pagination.max_pages'] as $key) {
+        config()->set("google-places.{$key}", $blank);
+    }
+    config()->set('google-places.cache.enabled', true);
+
+    places()->details(new DetailsQuery('place-1'));
+    places()->details(new DetailsQuery('place-1'));
+
+    Http::assertSentCount(1);
+})->with(['empty env' => [''], 'whitespace' => ['  ']]);
 
 it('reads canonical integer strings for the http settings (strict config)', function () {
     config()->set('google-places.http.timeout', '10');
@@ -98,36 +110,46 @@ it('caches with an env-string ttl (strict config)', function () {
     Http::assertSentCount(1);
 });
 
-it('refuses a blank or non-string cache store instead of using the default (strict config)', function (mixed $value) {
+it('refuses a non-string cache store instead of using the default (strict config)', function () {
     config()->set('google-places.cache.enabled', true);
-    config()->set('google-places.cache.store', $value);
+    config()->set('google-places.cache.store', 5);
 
     expect(fn () => places()->details(new DetailsQuery('place-1')))->toThrow(
         InvalidConfigurationException::class,
         'Configuration value [google-places.cache.store] must be a non-empty string',
     );
-})->with(['empty env' => [''], 'int' => [5]]);
+});
 
-it('refuses a blank or non-string log channel instead of using the default (strict config)', function (mixed $value) {
+it('caches in the default store when the store is not set (strict config)', function (?string $value) {
+    config()->set('google-places.cache.enabled', true);
+    config()->set('google-places.cache.store', $value);
+
+    places()->details(new DetailsQuery('place-1'));
+    places()->details(new DetailsQuery('place-1'));
+
+    Http::assertSentCount(1);
+})->with(['null' => [null], 'empty env' => [''], 'whitespace' => ['  ']]);
+
+it('refuses a non-string log channel instead of using the default (strict config)', function () {
     config()->set('google-places.logging.enabled', true);
-    config()->set('google-places.logging.channel', $value);
+    config()->set('google-places.logging.channel', ['stack']);
 
     expect(fn () => places()->details(new DetailsQuery('place-1')))->toThrow(
         InvalidConfigurationException::class,
         'Configuration value [google-places.logging.channel] must be a non-empty string',
     );
-})->with(['empty env' => [''], 'list' => [['stack']]]);
+});
 
-it('logs to the default channel when none is configured (strict config)', function () {
+it('logs to the default channel when none is configured (strict config)', function (?string $value) {
     config()->set('google-places.logging.enabled', true);
-    config()->set('google-places.logging.channel', null);
+    config()->set('google-places.logging.channel', $value);
     Log::shouldReceive('channel')->with(null)->andReturnSelf();
     Log::shouldReceive('info')->once();
 
     places()->details(new DetailsQuery('place-1'));
-});
+})->with(['null' => [null], 'empty env' => [''], 'whitespace' => ['  ']]);
 
-it('refuses a blank or non-string host or field mask (strict config)', function (string $key, mixed $value) {
+it('refuses a non-string host or field mask (strict config)', function (string $key, mixed $value) {
     config()->set("google-places.{$key}", $value);
 
     expect(fn () => places()->details(new DetailsQuery('place-1')))->toThrow(
@@ -135,21 +157,32 @@ it('refuses a blank or non-string host or field mask (strict config)', function 
         "Configuration value [google-places.{$key}] must be a non-empty string",
     );
 })->with([
-    'host empty env' => ['hosts.places', ''],
     'host int' => ['hosts.places', 443],
     'details mask list' => ['field_masks.details', ['id']],
-    'details mask blank' => ['field_masks.details', ' '],
 ]);
 
-it('refuses a blank search field mask (strict config)', function () {
-    config()->set('google-places.field_masks.search', '');
+it("talks to Google's own host when a host is not set (strict config)", function (?string $value) {
+    // A host's `GOOGLE_PLACES_HOST=` is not set: the shipped default applies.
+    config()->set('google-places.hosts.places', $value);
+
+    expect(places()->details(new DetailsQuery('place-1'))->name)->not->toBeNull();
+
+    Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://places.googleapis.com/v1/places/place-1'));
+})->with(['null' => [null], 'empty env' => [''], 'whitespace' => ['  ']]);
+
+it('refuses a field mask that is not set: it has no default (strict config)', function (string $key, string $value, Closure $call) {
+    config()->set("google-places.{$key}", $value);
     Http::fake(['places.googleapis.com/v1/places:searchText' => Http::response(['places' => []])]);
 
-    expect(fn () => places()->textSearch('museums'))->toThrow(
+    expect($call)->toThrow(
         InvalidConfigurationException::class,
-        'Configuration value [google-places.field_masks.search] must be a non-empty string',
+        "Configuration value [google-places.{$key}] is required but missing.",
     );
-});
+})->with([
+    'details empty' => ['field_masks.details', '', fn () => places()->details(new DetailsQuery('place-1'))],
+    'details whitespace' => ['field_masks.details', ' ', fn () => places()->details(new DetailsQuery('place-1'))],
+    'search empty' => ['field_masks.search', '', fn () => places()->textSearch('museums')],
+]);
 
 it('refuses a junk rate-limit setting instead of guessing one (strict config)', function (string $key, mixed $value, string $expected) {
     config()->set("google-places.rate_limits.{$key}", $value);
@@ -165,10 +198,8 @@ it('refuses a junk rate-limit setting instead of guessing one (strict config)', 
     'per typo' => ['places.per', 'minutes', 'one of [second, minute, hour, day]'],
     'per capitalised' => ['places.per', 'Minute', 'one of [second, minute, hour, day]'],
     'max wait word' => ['places.max_wait', 'soon', 'an integer'],
-    'max wait empty env' => ['places.max_wait', '', 'an integer'],
     'max wait negative' => ['places.max_wait', -1, 'at least 0'],
     'jitter suffix' => ['places.jitter', '50ms', 'an integer'],
-    'owner empty env' => ['owner', '', 'a non-empty string'],
     'owner list' => ['owner', ['app'], 'a non-empty string'],
 ]);
 
@@ -195,9 +226,9 @@ it('reads env-string rate limits through the strict reader (strict config)', fun
     $this->fail('Expected a RateLimitExceededException.');
 });
 
-it('uses the documented rate-limit defaults when the keys are unset (strict config)', function () {
-    foreach (['places.limit', 'places.per', 'places.max_wait', 'places.jitter', 'owner'] as $key) {
-        config()->set("google-places.rate_limits.{$key}", null);
+it('uses the documented rate-limit defaults when the keys are not set (strict config)', function (?string $value) {
+    foreach (['places.enabled', 'places.limit', 'places.per', 'places.adaptive', 'places.max_wait', 'places.jitter', 'owner'] as $key) {
+        config()->set("google-places.rate_limits.{$key}", $value);
     }
 
     $fake = RateLimits::fake();
@@ -205,4 +236,18 @@ it('uses the documented rate-limit defaults when the keys are unset (strict conf
     places()->details(new DetailsQuery('place-1'));
 
     $fake->assertAllowed('google-places:places:app');
-});
+})->with(['null' => [null], 'empty env' => [''], 'whitespace' => ['  ']]);
+
+it('paces rather than failing fast when max_wait is blank (strict config)', function (string $blank) {
+    // A blank `max_wait` is not set — pace — never a 0 ms ceiling that fails every wait.
+    config()->set('google-places.rate_limits.geocoding.limit', 1);
+    config()->set('google-places.rate_limits.geocoding.max_wait', $blank);
+    config()->set('google-places.rate_limits.geocoding.jitter', $blank);
+    $fake = RateLimits::fake();
+    Http::fake(['maps.googleapis.com/maps/api/geocode/json*' => Http::response(['status' => 'ZERO_RESULTS', 'results' => []])]);
+
+    places()->geocodeAddress('a');
+    places()->geocodeAddress('b');
+
+    $fake->assertDeferred('google-places:geocoding:app');
+})->with(['empty env' => [''], 'whitespace' => ['  ']]);

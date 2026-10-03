@@ -75,19 +75,21 @@ GOOGLE_PLACES_API_KEY=your-google-maps-api-key
 ```
 
 The package works with zero extra configuration once the key is set. Every value lives in
-`config/google-places.php` and is read strictly: only an unset (`null`) key takes its default,
-and anything invalid throws `InvalidConfigurationException` naming the key, never a silent
-fallback.
+`config/google-places.php` and is read strictly: a key that is not set takes its default, and
+anything invalid throws `InvalidConfigurationException` naming the key, never a silent
+fallback. **Blank means not set:** an absent key, `null` and a blank value (a host's `KEY=`,
+empty or whitespace only) all take the default.
 
 - A `bool` switch accepts `true`/`false`, `1`/`0`, `on`/`off` or `yes`/`no`, from `.env` or the
   published file.
-- An `int` takes an integer or an integer string (`'30'`). `'five'`, `'5.5'`, `'5s'`, a blank env
-  or a value out of range throws. Timeouts, `cache.ttl`, `pagination.max_pages` and the
+- An `int` takes an integer or an integer string (`'30'`). `'five'`, `'5.5'`, `'5s'` or a value
+  out of range throws. Timeouts, `cache.ttl`, `pagination.max_pages` and the
   rate-limit `limit` must be at least 1. Retries, `retry_delay`, `max_wait` and `jitter` must be
   at least 0.
 - `rate_limits.{surface}.per` must be exactly `second`, `minute`, `hour` or `day`.
 - A string (`hosts.*`, `field_masks.*`, `cache.store`, `logging.channel`, `rate_limits.owner`)
-  must be non-empty. To use the default store or channel, leave it unset rather than blank.
+  must be a string. A blank host is Google's own, and a blank store, channel or owner the
+  default. A field mask has no default: a blank one throws "required but missing".
 
 | Key | Type | Default | Env | Purpose |
 |---|---|---|---|---|

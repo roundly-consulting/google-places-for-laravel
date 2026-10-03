@@ -59,7 +59,12 @@ Initial public release.
   `InvalidConfigurationException` naming its full key, instead of falling back to the default.
 - Every other setting is read strictly too, so an env typo no longer turns into a silent default:
   `(int)` turned `GOOGLE_PLACES_TIMEOUT=five` into no timeout and a junk `max_pages` into one
-  page, a `per` typo became a minute, a junk `max_wait` / `jitter` was dropped and a blank or
-  non-string host, field mask, cache store or log channel was swapped for a default. Integers
-  must be integers in range (timeouts, `cache.ttl`, `max_pages` and `limit` at least 1), `per`
-  one of the four windows and strings non-empty; an unset key keeps its default.
+  page, a `per` typo became a minute, a junk `max_wait` / `jitter` was dropped and a non-string
+  host, field mask, cache store or log channel was swapped for a default. Integers must be
+  integers in range (timeouts, `cache.ttl`, `max_pages` and `limit` at least 1), `per` one of
+  the four windows and every string setting a string; a key that is not set keeps its default.
+- Blank means not set: a blank value (a host's `KEY=`, empty or whitespace only) reads exactly
+  like an absent key. A blank host, cache store, log channel or rate-limit owner takes its
+  default, a blank `max_wait` / `jitter` is unset (a blank `max_wait` used to become a 0 ms
+  fail-fast ceiling), a blank field mask throws "required but missing", and a whitespace-only
+  API key counts as missing.

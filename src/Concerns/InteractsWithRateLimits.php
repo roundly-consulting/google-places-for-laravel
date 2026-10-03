@@ -7,6 +7,7 @@ namespace RoundlyConsulting\GooglePlaces\Concerns;
 use Closure;
 use Illuminate\Http\Client\Response;
 use RoundlyConsulting\GooglePlaces\Exceptions\RateLimitExceededException as PlacesRateLimitExceededException;
+use RoundlyConsulting\GooglePlaces\Support\ConfigValue;
 use RoundlyConsulting\HttpClientRateLimits\Enums\Timespan;
 use RoundlyConsulting\HttpClientRateLimits\Exceptions\RateLimitExceededException;
 use RoundlyConsulting\HttpClientRateLimits\Facades\RateLimits;
@@ -32,9 +33,10 @@ trait InteractsWithRateLimits
      *
      * Every key is read by its full name through package-toolkit's strict readers,
      * so a bad value throws InvalidConfigurationException naming e.g.
-     * `google-places.rate_limits.places.limit`. Only an unset (null) key takes its
-     * default: `(int) 'lots'` used to be 0, a junk `max_wait` / `jitter` was
-     * dropped and a `per` typo quietly became a minute.
+     * `google-places.rate_limits.places.limit`. Only a key that is not set — absent,
+     * null or blank (a host's `KEY=`) — takes its default: `(int) 'lots'` used to be
+     * 0, a junk `max_wait` / `jitter` was dropped and a `per` typo quietly became a
+     * minute.
      */
     protected function rateLimiter(string $surface): ?RateLimit
     {
@@ -50,9 +52,9 @@ trait InteractsWithRateLimits
             return null;
         }
 
-        $owner = config('google-places.rate_limits.owner') === null
-            ? 'app'
-            : Config::requireString('google-places.rate_limits.owner');
+        $owner = ConfigValue::isSet(config('google-places.rate_limits.owner'))
+            ? Config::requireString('google-places.rate_limits.owner')
+            : 'app';
 
         $rateLimit = RateLimits::make(new Limit(
             maxAttempts: Config::integer("google-places.rate_limits.{$surface}.limit", 600, min: 1),
@@ -63,11 +65,11 @@ trait InteractsWithRateLimits
             $rateLimit->adaptive();
         }
 
-        if (config("google-places.rate_limits.{$surface}.max_wait") !== null) {
+        if (ConfigValue::isSet(config("google-places.rate_limits.{$surface}.max_wait"))) {
             $rateLimit->maxWait(Config::integer("google-places.rate_limits.{$surface}.max_wait", 0, min: 0));
         }
 
-        if (config("google-places.rate_limits.{$surface}.jitter") !== null) {
+        if (ConfigValue::isSet(config("google-places.rate_limits.{$surface}.jitter"))) {
             $rateLimit->jitter(Config::integer("google-places.rate_limits.{$surface}.jitter", 0, min: 0));
         }
 
