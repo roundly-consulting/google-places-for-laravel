@@ -32,6 +32,13 @@ trait InteractsWithRateLimits
      */
     protected function rateLimiter(string $surface): ?RateLimit
     {
+        // Pin the surface to the section actually read, so the switch reads below
+        // can name their full key.
+        $surface = match ($surface) {
+            'routes', 'geocoding' => $surface,
+            default => 'places',
+        };
+
         /** @var array<string, mixed> $config */
         $config = match ($surface) {
             'routes' => config('google-places.rate_limits.routes', []),
@@ -39,7 +46,9 @@ trait InteractsWithRateLimits
             default => config('google-places.rate_limits.places', []),
         };
 
-        if (! Config::for($config)->boolean('enabled', true)) {
+        // By full key rather than `Config::for($config)`, so an unreadable switch
+        // throws naming `google-places.rate_limits.places.enabled`, not a bare `[enabled]`.
+        if (! Config::boolean("google-places.rate_limits.{$surface}.enabled", true)) {
             return null;
         }
 
@@ -51,7 +60,7 @@ trait InteractsWithRateLimits
             timespan: $timespan,
         ))->by("google-places:{$surface}:{$owner}");
 
-        if (Config::for($config)->boolean('adaptive', true)) {
+        if (Config::boolean("google-places.rate_limits.{$surface}.adaptive", true)) {
             $rateLimit->adaptive();
         }
 

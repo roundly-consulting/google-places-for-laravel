@@ -55,3 +55,5 @@ Initial public release.
 - The fake class is renamed `Testing\FakePlacesClient` → `Testing\GooglePlacesFake`.
 - Outbound rate limits are built through the `RateLimits` facade of
   http-client-rate-limits-for-laravel.
+- A boolean switch that isn't `true`/`false`/`1`/`0`/`on`/`off`/`yes`/`no` now throws
+  `InvalidConfigurationException` naming its full key, instead of falling back to the default.

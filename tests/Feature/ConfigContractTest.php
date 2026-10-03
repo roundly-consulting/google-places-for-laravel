@@ -24,16 +24,17 @@ declare(strict_types=1);
 it('ships exactly the config keys it reads', function (): void {
     expect(__DIR__.'/../../config/google-places.php')->toSatisfyConfigContract(__DIR__.'/../../src', [
         /*
-         * The 18 rate-limit leaves below are read — by `InteractsWithRateLimits::rateLimiter()`,
-         * which resolves one surface's section and then offsets into it (`$config['enabled']`,
-         * `$config['limit']`, …). The scraper cannot attribute them, and that is a limitation
-         * of the scraper rather than dead config:
+         * The 12 rate-limit leaves below are read — by `InteractsWithRateLimits::rateLimiter()`,
+         * which resolves one surface's section and then offsets into it (`$config['limit']`,
+         * `$config['per']`, …). The scraper cannot attribute them, and that is a limitation
+         * of the scraper rather than dead config. (The `enabled` / `adaptive` switches are
+         * read by full key — `rate_limits.{$surface}.enabled` — so the scraper proves them.)
          *
          *   - `sectionVariables` is the documented remedy for exactly this shape, but it maps
          *     one variable to ONE prefix. Here a single `$config` is, by design, whichever of
-         *     the three sibling sections the surface selected — so at most 6 of the 18 could
+         *     the three sibling sections the surface selected — so at most 4 of the 12 could
          *     ever be attributed.
-         *   - The only alternatives are to unroll 18 literal leaf reads into what is now one
+         *   - The only alternatives are to unroll 12 literal leaf reads into what is now one
          *     line, or to duplicate the method three times. Both are strictly worse code
          *     written to satisfy a test, and the fleet's own lesson is that a test harness
          *     does not get to dictate shipped code (the `down()` pin went 30/30 red against a
@@ -42,7 +43,7 @@ it('ships exactly the config keys it reads', function (): void {
          * `allowUnread` is the assertion's own sanctioned escape here, and it does NOT blind
          * this check: every entry is rot-verified (a listed key that becomes readable, or was
          * never shipped, fails), and a *newly* shipped unread key is not in the list, so it
-         * still fails. What is given up is static proof of these 18 reads specifically —
+         * still fails. What is given up is static proof of these 12 reads specifically —
          * covered instead by tests/Feature/RateLimitTest.php, which drives all three surfaces
          * through the real limiter.
          *
@@ -52,22 +53,16 @@ it('ships exactly the config keys it reads', function (): void {
          * with the same section-then-offset read (5 packages, past the ">3 = defect" bar).
          */
         'allowUnread' => [
-            'google-places.rate_limits.places.enabled',
             'google-places.rate_limits.places.limit',
             'google-places.rate_limits.places.per',
-            'google-places.rate_limits.places.adaptive',
             'google-places.rate_limits.places.max_wait',
             'google-places.rate_limits.places.jitter',
-            'google-places.rate_limits.routes.enabled',
             'google-places.rate_limits.routes.limit',
             'google-places.rate_limits.routes.per',
-            'google-places.rate_limits.routes.adaptive',
             'google-places.rate_limits.routes.max_wait',
             'google-places.rate_limits.routes.jitter',
-            'google-places.rate_limits.geocoding.enabled',
             'google-places.rate_limits.geocoding.limit',
             'google-places.rate_limits.geocoding.per',
-            'google-places.rate_limits.geocoding.adaptive',
             'google-places.rate_limits.geocoding.max_wait',
             'google-places.rate_limits.geocoding.jitter',
         ],

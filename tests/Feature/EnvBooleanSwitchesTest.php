@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RoundlyConsulting\GooglePlaces\DataTransferObjects\DetailsQuery;
 use RoundlyConsulting\HttpClientRateLimits\Facades\RateLimits;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 /**
  * env() only turns 'true'/'false' into booleans: a .env "1"/"on"/"yes" stays a string
@@ -119,3 +120,26 @@ it('reads the adaptive switch as a boolean', function (string $value, bool $adap
     'off' => ['off', false],
     'no' => ['no', false],
 ]);
+
+it('refuses an unreadable surface switch, naming its full key (strict config)', function (string $leaf): void {
+    // Read through `Config::for($section)`, the error named a bare `[enabled]` — no way to
+    // tell which of three surfaces (or which package) held the typo.
+    config()->set("google-places.rate_limits.places.{$leaf}", 'disabled');
+    RateLimits::fake();
+
+    expect(fn () => places()->details(new DetailsQuery('place-1')))->toThrow(
+        InvalidConfigurationException::class,
+        "Configuration value [google-places.rate_limits.places.{$leaf}] must be a boolean",
+    );
+
+    Http::assertNothingSent();
+})->with(['enabled', 'adaptive']);
+
+it('refuses an unreadable cache switch (strict config)', function (): void {
+    config()->set('google-places.cache.enabled', 'disabled');
+
+    expect(fn () => places()->details(new DetailsQuery('place-1')))->toThrow(
+        InvalidConfigurationException::class,
+        'Configuration value [google-places.cache.enabled] must be a boolean',
+    );
+});
