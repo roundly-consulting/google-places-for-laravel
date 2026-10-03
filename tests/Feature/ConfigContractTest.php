@@ -23,37 +23,6 @@ declare(strict_types=1);
  */
 it('ships exactly the config keys it reads', function (): void {
     expect(__DIR__.'/../../config/google-places.php')->toSatisfyConfigContract(__DIR__.'/../../src', [
-        /*
-         * The three `per` leaves below ARE read — by `InteractsWithRateLimits::rateLimiter()`,
-         * as `Config::enum("google-places.rate_limits.{$surface}.per", Timespan::class, …)`.
-         * The scraper proves the sibling `limit` / `max_wait` / `jitter` / `enabled` /
-         * `adaptive` reads through the same `{$surface}` interpolation, because it knows
-         * `Config::integer()` / `Config::boolean()` as read methods; it does not know
-         * `Config::enum()`. That is a gap in the scraper, not dead config: a `per` typo
-         * throws (it used to become a minute), pinned by tests/Feature/StrictConfigTest.php.
-         *
-         * `allowUnread` is the assertion's own sanctioned escape here, and it does NOT blind
-         * this check: every entry is rot-verified (a listed key that becomes readable, or was
-         * never shipped, fails), so these three drop out the moment the scraper learns
-         * `Config::enum()`, and a newly shipped unread key is still caught.
-         */
-        'allowUnread' => [
-            'google-places.rate_limits.places.per',
-            'google-places.rate_limits.routes.per',
-            'google-places.rate_limits.geocoding.per',
-        ],
-
-        /*
-         * Every `google-places.` literal in src is one of this package's own config keys (the
-         * cache keys use `google-places:`, a colon), so the prefix rule cannot misattribute.
-         * It is needed because the hosts and field masks are read through package-toolkit's
-         * strict `Config::requireString()`, which the scraper does not know as a read: a
-         * blank or non-string host / mask now throws instead of sending Google an empty
-         * header or the request to the app's own origin. tests/Feature/StrictConfigTest.php
-         * drives those reads.
-         */
-        'extraReadPrefixes' => ['google-places.'],
-
         // Deliberately NO `excludeFromReverse` for the provider. The testing README's own
         // example excludes the service provider on the grounds that "a render is not a
         // read" — but this provider's `contributesToAbout()` closure calls
