@@ -174,7 +174,7 @@ final class Places implements PlacesClient
         $this->received('autocomplete', $response);
 
         return $response->collect('suggestions')
-            ->filter(static fn (array $suggestion): bool => isset($suggestion['placePrediction']))
+            ->filter(static fn (mixed $suggestion): bool => is_array($suggestion) && isset($suggestion['placePrediction']))
             ->map(static fn (array $suggestion): AutocompletePrediction => AutocompletePrediction::fromResponse((array) $suggestion['placePrediction']))
             ->values();
     }
