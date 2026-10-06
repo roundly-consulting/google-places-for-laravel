@@ -6,10 +6,21 @@ All notable changes to `google-places-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-06
+
 ### Changed
 
 - Requires geolocation-for-laravel `^2.0`. If your app uses geolocation's Google distances, enable
   the Routes API on that key.
+- Documentation: the README hero image loads from an absolute URL, so it renders on Packagist and
+  other sites.
+- Maintenance: `composer.json` `homepage` and `support.docs` point at the package documentation
+  site.
+
+### Fixed
+
+- `GooglePlaces::autocomplete()` skips a malformed non-object suggestion instead of throwing a
+  `TypeError`.
 
 ## 1.0.0 - 2026-10-03
 
