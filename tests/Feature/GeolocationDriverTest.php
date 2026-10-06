@@ -186,3 +186,17 @@ it('reports an unreachable google as an unavailable provider and moves on', func
             && ! str_contains($event->error->getMessage(), 'GoogleApiKey'),
     );
 });
+
+it('keeps the google_places driver usable under Geolocation::fake()', function () {
+    $places = fakePlaces();
+    $fake = Geolocation::fake();
+
+    Geolocation::provider('google_places')->locateAddress('Bratislava');
+    Geolocation::provider('google_places')->withToken('google_places', 'HostKey')->locateAddress('Vienna');
+    Geolocation::withToken('google_places', 'HostKey')->locateAddress('Prague');
+
+    $fake->assertProviderUsed('google_places');
+    $fake->assertLocated('Vienna');
+    $fake->assertLocated('Prague');
+    $places->assertNothingRequested();
+});
