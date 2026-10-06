@@ -6,6 +6,11 @@ All notable changes to `google-places-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+### Changed
+
+- Requires geolocation-for-laravel `^2.0`. If your app uses geolocation's Google distances, enable
+  the Routes API on that key.
+
 ## 1.0.0 - 2026-10-03
 
 Initial public release.
