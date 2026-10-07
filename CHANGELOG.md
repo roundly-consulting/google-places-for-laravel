@@ -6,6 +6,11 @@ All notable changes to `google-places-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+### Fixed
+
+- Requires geolocation-for-laravel `^2.0.1`. Under 2.0.0, `Geolocation::fake()` dropped the
+  `google_places` driver, so faked lookups threw `UnknownProviderException`.
+
 ## 1.1.0 - 2026-10-06
 
 ### Changed
