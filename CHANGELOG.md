@@ -6,6 +6,8 @@ All notable changes to `google-places-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+## 1.1.1 - 2026-10-07
+
 ### Fixed
 
 - Requires geolocation-for-laravel `^2.0.1`. Under 2.0.0, `Geolocation::fake()` dropped the
