@@ -25,6 +25,7 @@ final class GooglePlacesServiceProvider extends PackageServiceProvider
         $package
             ->name('google-places')
             ->hasConfigFile()
+            ->hasTranslations()
             ->hasCommands([
                 CheckCommand::class,
             ])

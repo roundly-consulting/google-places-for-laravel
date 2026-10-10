@@ -20,17 +20,17 @@ final class ValidCoordinates implements ValidationRule
         [$latitude, $longitude] = $this->extract($value);
 
         if ($latitude === null || $longitude === null) {
-            $fail('The :attribute must be a valid latitude/longitude pair.');
+            $fail(trans('google-places::validation.coordinates'));
 
             return;
         }
 
         if ($latitude < -90.0 || $latitude > 90.0) {
-            $fail('The :attribute latitude must be between -90 and 90.');
+            $fail(trans('google-places::validation.latitude'));
         }
 
         if ($longitude < -180.0 || $longitude > 180.0) {
-            $fail('The :attribute longitude must be between -180 and 180.');
+            $fail(trans('google-places::validation.longitude'));
         }
     }
 

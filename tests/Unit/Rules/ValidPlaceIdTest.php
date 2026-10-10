@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Validator;
 use RoundlyConsulting\GooglePlaces\Rules\ValidPlaceId;
 
 /**
@@ -35,4 +36,38 @@ it('fails an empty or malformed place id', function (mixed $value) {
 
 it('reports a helpful message', function () {
     expect(placeIdErrors(''))->toContain('The :attribute must be a valid Google Place ID.');
+});
+
+it('answers in slovak under the sk locale', function () {
+    app()->setLocale('sk');
+
+    expect(placeIdErrors(''))->toBe(['Pole :attribute musí obsahovať platné Google Place ID.']);
+});
+
+it('names the attribute by its display or custom name through the validator', function () {
+    $validator = Validator::make(
+        ['place_id' => 'bad/id!', 'spot' => 'abc'],
+        ['place_id' => [new ValidPlaceId], 'spot' => [new ValidPlaceId]],
+        [],
+        ['spot' => 'chosen place'],
+    );
+
+    expect($validator->errors()->first('place_id'))->toBe('The place id must be a valid Google Place ID.')
+        ->and($validator->errors()->first('spot'))->toBe('The chosen place must be a valid Google Place ID.');
+});
+
+it('answers in slovak through the validator', function () {
+    app()->setLocale('sk');
+
+    $validator = Validator::make(['place_id' => 'bad/id!'], ['place_id' => [new ValidPlaceId]]);
+
+    expect($validator->errors()->first('place_id'))->toBe('Pole place id musí obsahovať platné Google Place ID.');
+});
+
+it('lets the host override the message', function () {
+    app('translator')->addLines(['validation.place_id' => 'X :attribute'], 'en', 'google-places');
+
+    $validator = Validator::make(['place' => 'bad/id!'], ['place' => [new ValidPlaceId]]);
+
+    expect($validator->errors()->first('place'))->toBe('X place');
 });

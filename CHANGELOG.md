@@ -6,6 +6,12 @@ All notable changes to `google-places-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+### Fixed
+
+- `ValidPlaceId` and `ValidCoordinates` messages are now translatable, in English and Slovak
+  (keys `google-places::validation.*`, publish tag `google-places-translations`). The English
+  text is unchanged.
+
 ## 1.1.1 - 2026-10-07
 
 ### Fixed

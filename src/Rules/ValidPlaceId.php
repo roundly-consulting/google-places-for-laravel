@@ -16,7 +16,7 @@ final class ValidPlaceId implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value) || preg_match('/^[A-Za-z0-9_-]{6,512}$/', $value) !== 1) {
-            $fail('The :attribute must be a valid Google Place ID.');
+            $fail(trans('google-places::validation.place_id'));
         }
     }
 }
