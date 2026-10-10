@@ -20,6 +20,7 @@ final readonly class MatrixQuery
         public array $destinations,
         TravelMode|string $type = TravelMode::Driving,
         public ?Carbon $departureAt = null,
+        public bool $fresh = false,
     ) {
         $this->type = $type instanceof TravelMode ? $type : TravelMode::from($type);
     }
@@ -46,12 +47,21 @@ final readonly class MatrixQuery
 
     public function travellingBy(TravelMode $mode): self
     {
-        return new self($this->origins, $this->destinations, $mode, $this->departureAt);
+        return new self($this->origins, $this->destinations, $mode, $this->departureAt, $this->fresh);
     }
 
     public function departingAt(?Carbon $departureAt): self
     {
-        return new self($this->origins, $this->destinations, $this->type, $departureAt);
+        return new self($this->origins, $this->destinations, $this->type, $departureAt, $this->fresh);
+    }
+
+    /**
+     * Skip the cache read for this lookup: ask Google, then write the answer back to the
+     * cache. The flag never reaches Google and is not part of the cache key.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        return new self($this->origins, $this->destinations, $this->type, $this->departureAt, $fresh);
     }
 
     /**

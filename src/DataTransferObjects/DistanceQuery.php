@@ -16,38 +16,48 @@ final readonly class DistanceQuery
         public Location|MultipleLocations $to,
         TravelMode|string $type = TravelMode::Driving,
         public ?Carbon $departureAt = null,
+        public bool $fresh = false,
     ) {
         $this->type = $type instanceof TravelMode ? $type : TravelMode::from($type);
     }
 
     public function driving(): self
     {
-        return new self($this->from, $this->to, TravelMode::Driving, $this->departureAt);
+        return new self($this->from, $this->to, TravelMode::Driving, $this->departureAt, $this->fresh);
     }
 
     public function walking(): self
     {
-        return new self($this->from, $this->to, TravelMode::Walking, $this->departureAt);
+        return new self($this->from, $this->to, TravelMode::Walking, $this->departureAt, $this->fresh);
     }
 
     public function bicycling(): self
     {
-        return new self($this->from, $this->to, TravelMode::Bicycling, $this->departureAt);
+        return new self($this->from, $this->to, TravelMode::Bicycling, $this->departureAt, $this->fresh);
     }
 
     public function transit(): self
     {
-        return new self($this->from, $this->to, TravelMode::Transit, $this->departureAt);
+        return new self($this->from, $this->to, TravelMode::Transit, $this->departureAt, $this->fresh);
     }
 
     public function travellingBy(TravelMode $mode): self
     {
-        return new self($this->from, $this->to, $mode, $this->departureAt);
+        return new self($this->from, $this->to, $mode, $this->departureAt, $this->fresh);
     }
 
     public function departingAt(?Carbon $departureAt): self
     {
-        return new self($this->from, $this->to, $this->type, $departureAt);
+        return new self($this->from, $this->to, $this->type, $departureAt, $this->fresh);
+    }
+
+    /**
+     * Skip the cache read for this lookup: ask Google, then write the answer back to the
+     * cache. The flag never reaches Google and is not part of the cache key.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        return new self($this->from, $this->to, $this->type, $this->departureAt, $fresh);
     }
 
     /**

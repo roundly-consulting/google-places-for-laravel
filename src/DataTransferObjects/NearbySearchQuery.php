@@ -26,6 +26,7 @@ final readonly class NearbySearchQuery
         public ?int $maxResultCount = null,
         public ?string $rankPreference = null,
         public string $language = 'en',
+        public bool $fresh = false,
     ) {
         if ($radius < self::MIN_RADIUS || $radius > self::MAX_RADIUS) {
             throw PlacesException::invalidRadius(self::MIN_RADIUS, self::MAX_RADIUS);
@@ -34,32 +35,41 @@ final readonly class NearbySearchQuery
 
     public function withRadius(int $radius): self
     {
-        return new self($this->location, $radius, $this->includedTypes, $this->excludedTypes, $this->maxResultCount, $this->rankPreference, $this->language);
+        return new self($this->location, $radius, $this->includedTypes, $this->excludedTypes, $this->maxResultCount, $this->rankPreference, $this->language, $this->fresh);
     }
 
     public function withinTypes(string ...$types): self
     {
-        return new self($this->location, $this->radius, array_values($types), $this->excludedTypes, $this->maxResultCount, $this->rankPreference, $this->language);
+        return new self($this->location, $this->radius, array_values($types), $this->excludedTypes, $this->maxResultCount, $this->rankPreference, $this->language, $this->fresh);
     }
 
     public function excludingTypes(string ...$types): self
     {
-        return new self($this->location, $this->radius, $this->includedTypes, array_values($types), $this->maxResultCount, $this->rankPreference, $this->language);
+        return new self($this->location, $this->radius, $this->includedTypes, array_values($types), $this->maxResultCount, $this->rankPreference, $this->language, $this->fresh);
     }
 
     public function take(int $maxResultCount): self
     {
-        return new self($this->location, $this->radius, $this->includedTypes, $this->excludedTypes, $maxResultCount, $this->rankPreference, $this->language);
+        return new self($this->location, $this->radius, $this->includedTypes, $this->excludedTypes, $maxResultCount, $this->rankPreference, $this->language, $this->fresh);
     }
 
     public function rankBy(string $rankPreference): self
     {
-        return new self($this->location, $this->radius, $this->includedTypes, $this->excludedTypes, $this->maxResultCount, $rankPreference, $this->language);
+        return new self($this->location, $this->radius, $this->includedTypes, $this->excludedTypes, $this->maxResultCount, $rankPreference, $this->language, $this->fresh);
     }
 
     public function inLanguage(string $language): self
     {
-        return new self($this->location, $this->radius, $this->includedTypes, $this->excludedTypes, $this->maxResultCount, $this->rankPreference, $language);
+        return new self($this->location, $this->radius, $this->includedTypes, $this->excludedTypes, $this->maxResultCount, $this->rankPreference, $language, $this->fresh);
+    }
+
+    /**
+     * Skip the cache read for this lookup: ask Google, then write the answer back to the
+     * cache. The flag never reaches Google and is not part of the cache key.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        return new self($this->location, $this->radius, $this->includedTypes, $this->excludedTypes, $this->maxResultCount, $this->rankPreference, $this->language, $fresh);
     }
 
     /**

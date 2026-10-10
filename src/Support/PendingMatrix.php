@@ -20,6 +20,8 @@ final class PendingMatrix
 {
     private ?Carbon $departureAt = null;
 
+    private bool $fresh = false;
+
     /**
      * @param  list<Location>  $origins
      * @param  list<Location>  $destinations
@@ -33,6 +35,16 @@ final class PendingMatrix
     public function departingAt(?Carbon $departureAt): self
     {
         $this->departureAt = $departureAt;
+
+        return $this;
+    }
+
+    /**
+     * Skip the cache read for this matrix: ask Google, then write the answer back.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        $this->fresh = $fresh;
 
         return $this;
     }
@@ -79,6 +91,7 @@ final class PendingMatrix
             destinations: $this->destinations,
             type: $mode,
             departureAt: $this->departureAt,
+            fresh: $this->fresh,
         ));
     }
 }

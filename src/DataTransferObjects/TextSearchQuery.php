@@ -22,6 +22,7 @@ final readonly class TextSearchQuery
         public LocationDefinition $locationRestriction = new LocationDefinition,
         public ?string $rankPreference = null,
         public ?string $pageToken = null,
+        public bool $fresh = false,
     ) {}
 
     public function withText(string $textQuery): self
@@ -101,6 +102,15 @@ final readonly class TextSearchQuery
     }
 
     /**
+     * Skip the cache read for this lookup: ask Google, then write the answer back to the
+     * cache. The flag never reaches Google and is not part of the cache key.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        return $this->copy(fresh: $fresh);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toBody(): array
@@ -169,6 +179,7 @@ final readonly class TextSearchQuery
         ?LocationDefinition $locationRestriction = null,
         ?string $rankPreference = null,
         ?string $pageToken = null,
+        ?bool $fresh = null,
     ): self {
         return new self(
             textQuery: $textQuery ?? $this->textQuery,
@@ -183,6 +194,7 @@ final readonly class TextSearchQuery
             locationRestriction: $locationRestriction ?? $this->locationRestriction,
             rankPreference: $rankPreference ?? $this->rankPreference,
             pageToken: $pageToken ?? $this->pageToken,
+            fresh: $fresh ?? $this->fresh,
         );
     }
 }

@@ -15,7 +15,17 @@ final readonly class ReverseGeocodingQuery
         public array $resultTypes = [],
         public array $locationTypes = [],
         public string $language = 'en',
+        public bool $fresh = false,
     ) {}
+
+    /**
+     * Skip the cache read for this lookup: ask Google, then write the answer back to the
+     * cache. The flag never reaches Google and is not part of the cache key.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        return new self($this->location, $this->resultTypes, $this->locationTypes, $this->language, $fresh);
+    }
 
     /**
      * @return array<string, mixed>

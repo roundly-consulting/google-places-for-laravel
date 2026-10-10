@@ -15,7 +15,17 @@ final readonly class DetailsQuery
         public ?array $fields = null,
         public string $language = 'en',
         public ?string $sessionToken = null,
+        public bool $fresh = false,
     ) {}
+
+    /**
+     * Skip the cache read for this lookup: ask Google, then write the answer back to the
+     * cache. The flag never reaches Google and is not part of the cache key.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        return new self($this->place, $this->fields, $this->language, $this->sessionToken, $fresh);
+    }
 
     /**
      * The `X-Goog-FieldMask` value, or null to fall back to the configured default.

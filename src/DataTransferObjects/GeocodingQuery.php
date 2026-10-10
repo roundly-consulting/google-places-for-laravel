@@ -14,26 +14,36 @@ final readonly class GeocodingQuery
         public string $language = 'en',
         public ?string $region = null,
         public array $components = [],
+        public bool $fresh = false,
     ) {}
 
     public function withAddress(string $address): self
     {
-        return new self($address, $this->language, $this->region, $this->components);
+        return new self($address, $this->language, $this->region, $this->components, $this->fresh);
     }
 
     public function inLanguage(string $language): self
     {
-        return new self($this->address, $language, $this->region, $this->components);
+        return new self($this->address, $language, $this->region, $this->components, $this->fresh);
     }
 
     public function inRegion(string $region): self
     {
-        return new self($this->address, $this->language, $region, $this->components);
+        return new self($this->address, $this->language, $region, $this->components, $this->fresh);
     }
 
     public function filterBy(string ...$components): self
     {
-        return new self($this->address, $this->language, $this->region, array_values($components));
+        return new self($this->address, $this->language, $this->region, array_values($components), $this->fresh);
+    }
+
+    /**
+     * Skip the cache read for this lookup: ask Google, then write the answer back to the
+     * cache. The flag never reaches Google and is not part of the cache key.
+     */
+    public function fresh(bool $fresh = true): self
+    {
+        return new self($this->address, $this->language, $this->region, $this->components, $fresh);
     }
 
     /**

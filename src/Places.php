@@ -157,6 +157,7 @@ final class Places implements PlacesClient
                 throw $this->failed('details', $response);
             },
             static fn (?array $payload): ?Place => $payload === null ? null : Place::fromResponse($payload),
+            $query->fresh,
         );
     }
 
@@ -203,6 +204,7 @@ final class Places implements PlacesClient
                 throw $this->failed('geocode', $response);
             },
             static fn (?array $payload): Collection => self::geocodingResults($payload),
+            $query->fresh,
         );
     }
 
@@ -226,6 +228,7 @@ final class Places implements PlacesClient
                 throw $this->failed('geocodeAddress', $response);
             },
             static fn (?array $payload): Collection => self::geocodingResults($payload),
+            $query->fresh,
         );
     }
 
@@ -238,6 +241,7 @@ final class Places implements PlacesClient
             $query->toBody(),
             fn (): array => $this->search('textSearch', '/places:searchText', $query->toBody()),
             static fn (?array $payload): Collection => self::places($payload),
+            $query->fresh,
         );
     }
 
@@ -248,6 +252,7 @@ final class Places implements PlacesClient
             $query->toBody(),
             fn (): array => $this->search('nearbySearch', '/places:searchNearby', $query->toBody()),
             static fn (?array $payload): Collection => self::places($payload),
+            $query->fresh,
         );
     }
 
@@ -303,6 +308,7 @@ final class Places implements PlacesClient
                 count($query->destinations),
                 $query->type,
             ),
+            $query->fresh,
         );
     }
 
@@ -360,6 +366,7 @@ final class Places implements PlacesClient
 
                 return Distance::fromRoutesElement((array) $elements[0], $query->type);
             },
+            $query->fresh,
         );
     }
 
@@ -681,6 +688,10 @@ final class Places implements PlacesClient
      * miss — so it re-billed Google for every repeat of a question already
      * answered.
      *
+     * A `$fresh` lookup skips the read, asks Google, and writes the answer back
+     * (write-through), so the next plain read gets it and the entry's age restarts.
+     * A failure throws before the write, leaving the old entry in place.
+     *
      * @template TValue
      *
      * @param  array<string, mixed>  $params  what makes this lookup unique
@@ -688,7 +699,7 @@ final class Places implements PlacesClient
      * @param  Closure(array<mixed>|null): TValue  $decode  payload → the returned type
      * @return TValue
      */
-    private function cached(string $endpoint, array $params, Closure $fetch, Closure $decode): mixed
+    private function cached(string $endpoint, array $params, Closure $fetch, Closure $decode, bool $fresh = false): mixed
     {
         if (! Config::boolean('google-places.cache.enabled')) {
             return $decode($fetch());
@@ -696,7 +707,7 @@ final class Places implements PlacesClient
 
         $key = 'google-places:'.$endpoint.':'.sha1((string) json_encode($params));
         $store = Cache::store($this->cacheStore());
-        $cached = $store->get($key);
+        $cached = $fresh ? null : $store->get($key);
 
         // Only this service's own wrapper counts as a hit. Anything else — a payload
         // from an older version of this package, or an object a previous one stored —

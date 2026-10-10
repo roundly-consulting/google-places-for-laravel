@@ -71,6 +71,7 @@ final class PlacesSession
             fields: $query->fields,
             language: $query->language,
             sessionToken: $this->token,
+            fresh: $query->fresh,
         ));
 
         $this->finished = true;

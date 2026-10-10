@@ -6,6 +6,15 @@ All notable changes to `google-places-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+### Added
+
+- A `fresh` flag on every cached query (`DetailsQuery`, `ReverseGeocodingQuery`,
+  `GeocodingQuery`, `TextSearchQuery`, `NearbySearchQuery`, `DistanceQuery`, `MatrixQuery`), as a
+  trailing constructor argument (`fresh: true`) or the `fresh()` wither, plus
+  `PendingMatrix::fresh()`. A fresh lookup skips the cache read, asks Google and writes the answer
+  back, so you can refresh a stored snapshot on demand. A failed refresh throws and leaves the
+  cached entry alone. The flag is never sent to Google and is not part of the cache key.
+
 ### Fixed
 
 - `ValidPlaceId` and `ValidCoordinates` messages are now translatable, in English and Slovak
