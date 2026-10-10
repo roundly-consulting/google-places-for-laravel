@@ -6,6 +6,8 @@ All notable changes to `google-places-for-laravel` are documented in this file. 
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-10
+
 ### Added
 
 - A `fresh` flag on every cached query (`DetailsQuery`, `ReverseGeocodingQuery`,
