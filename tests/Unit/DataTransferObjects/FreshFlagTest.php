@@ -109,7 +109,8 @@ it('lists every wither of every cached query', function () {
         $reflection = new ReflectionClass($class);
 
         foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if (! $method->isStatic() && (string) $method->getReturnType() === 'self') {
+            // PHP 8.5 reflection reports a `self` return type by the class's name.
+            if (! $method->isStatic() && in_array((string) $method->getReturnType(), ['self', $class], true)) {
                 $withers[] = $reflection->getShortName().'::'.$method->getName();
             }
         }
