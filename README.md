@@ -25,7 +25,7 @@ objects, field masks, caching, rate limiting and a first-class fake for tests.
 
 ## Installation
 
-Requires PHP 8.4, Laravel 12 or 13, and a Google Maps Platform API key with the Places API (New),
+Requires PHP 8.4, Laravel 13, and a Google Maps Platform API key with the Places API (New),
 Routes API and Geocoding API enabled.
 
 ```bash
